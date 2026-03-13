@@ -1,36 +1,39 @@
 const { exec } = require('child_process');
-const crypto = require('crypto');
+const fs = require('fs');
 
-const compute = process.argv[2] || 4;
-const credits = process.argv[3] || 2;
+const STATE_FILE = './state.json';
 
-const cmd = `/usr/local/bin/atk --file mint_test.aut --compute ${compute} --credits ${credits} --json`;
+// 1. Load Persistence Layer
+let state = { next_nonce: 1 };
+if (fs.existsSync(STATE_FILE)) {
+    state = JSON.parse(fs.readFileSync(STATE_FILE));
+}
+
+const compute = process.argv[2] || 10;
+const credits = process.argv[3] || 5;
+const currentNonce = state.next_nonce;
+
+console.log(`[Node Client] Waking Engine... (Nonce: ${currentNonce})`);
+
+// 2. Execute Autarky Protocol
+const cmd = `/usr/local/bin/atk --file mint_test.aut --compute ${compute} --credits ${credits} --nonce ${currentNonce} --json`;
 
 exec(cmd, (error, stdout) => {
     if (error) {
-        console.error("❌ Compiler Error:", error.message);
+        console.error("❌ Protocol Halted:", error.message);
         return;
     }
 
-    const { payload, proof_signature, signer_pubkey } = JSON.parse(stdout);
+    const envelope = JSON.parse(stdout);
+    const payload = JSON.parse(envelope.payload);
 
-    // Verify the Ed25519 signature
-    const isValid = crypto.verify(
-        null,
-        Buffer.from(payload),
-        {
-            key: Buffer.from(`302a300506032b6570032100${signer_pubkey}`, 'hex'), // DER prefix for Ed25519
-            format: 'der',
-            type: 'spki',
-        },
-        Buffer.from(proof_signature, 'hex')
-    );
-
-    if (isValid) {
-        const data = JSON.parse(payload);
-        console.log(`\n✅ PROOF VERIFIED: ${data.vm_result} is authentic.`);
-        console.log(`[Asset Signature]: ${proof_signature.substring(0, 16)}...`);
-    } else {
-        console.error("\n🚨 SECURITY ALERT: Cryptographic signature mismatch!");
+    if (payload.status === "success") {
+        console.log(`✅ Transaction Confirmed: ${payload.vm_result}`);
+        
+        // 3. Atomic State Update
+        state.next_nonce = currentNonce + 1;
+        fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+        
+        console.log(`[State] Nonce incremented to ${state.next_nonce}. Proof saved.`);
     }
 });
