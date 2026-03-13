@@ -1,52 +1,133 @@
-# Autarky Mint Node
+# Autarky (`atk-mint`) & Mark VCS
 
-The Autarky Mint Node is the sovereign execution environment and validator for the world's most secure cryptocurrency architecture. By combining Linear Type Systems, native LLVM compilation, and Ed25519 cryptography, Autarky solves the double-spend problem at the compiler level.
+Autarky is a sovereign, Layer-1 blockchain protocol built on physical Proof of Work and cryptographic execution. It features a native smart contract engine (`atk`) enforcing linear type safety to prevent double-spending at the machine-code level.
 
-## 🛡️ The Three Pillars of Security
+Built on top of Autarky is **Mark**, a decentralized Version Control System (VCS). Mark serves as the fundamental utility layer for the `atk-mint` cryptocurrency, solving the "utility problem" of modern blockchains by requiring developers to burn `atk-mint` as computational gas to permanently anchor their code history to an immutable ledger.
 
-Most blockchains rely on network consensus to catch malicious transactions after they happen. Autarky enforces security *before* execution via its custom LLVM compiler (`atk`).
+---
 
-1. **Atomic Linearity (Zero Double-Spends):** Resources like `SYS_COMPUTE` and `SYS_CREDITS` are strictly linear. If a script attempts to use a resource twice, or fails to use it at all, the native compiler halts. The machine code for a double-spend literally cannot be generated.
-2. **Native Isolation (Zero VM Overhead):**
-   Instead of an interpreted Virtual Machine (like the EVM), Autarky compiles smart contracts directly to native LLVM IR, ensuring high-performance, isolated execution.
-3. **Cryptographic Non-Repudiation:**
-   Every successful execution is hashed alongside a strictly incrementing `nonce` and signed with an Ed25519 private key. This creates an undeniable, replay-proof certificate of execution.
+## ⚠️ Architectural Constraints
 
-## 📂 Repository Structure
+* **Node.js:** Required to run the networking and client scripts.
+* **MacOS Only:** The current native execution engine (`bin/atk`) is compiled exclusively for MacOS. To run this protocol on Linux or Windows, the Rust compiler must be rebuilt for the target architecture.
 
-* `atkMintClient.js` - The Node.js Validator Client. Manages local state (nonce) and broadcasts signed proofs to the network.
-* `main.aut` - The active linear smart contract executed by the engine.
-* `state.json.example` - Template for the local state file. 
-* `tests/` - Contains examples of failing linear contracts (`fail_double.aut`, `fail_leak.aut`) to demonstrate compiler-level security.
+---
 
-## 🚀 Getting Started
+## Core Architecture
 
-### 1. Initialize State
-Copy the state template to create your local sovereign wallet:
+The Autarky ecosystem is divided into two distinct layers:
+
+### Layer 1: The Protocol (`atk-mint`)
+* **The Engine (`bin/atk`):** A custom Rust-based LLVM compiler that executes smart contracts and charges a `SYS_COMPUTE` gas fee.
+* **The Identity:** Sovereign ownership secured by Ed25519 cryptography. Public keys act as network addresses.
+* **Consensus (Proof of Work):** The network strictly enforces a SHA-256 difficulty target (currently 4 leading zeros). Miners must expend physical computational energy to secure the network.
+* **The P2P Network:** A decentralized WebSocket gossip protocol that automatically handles node discovery, block propagation, and chain resolution (longest valid chain wins).
+
+### Layer 2: The Application (`mark`)
+* **Decentralized GitHub:** A command-line VCS that cryptographically hashes a repository's state.
+* **The Holy Grail:** `mark` gives the `atk-mint` currency actual economic value. To anchor a code commit, a user must invoke the `atk` engine, pay the compute fee, and perform Proof of Work. `atk-mint` is the digital oil required to run the `mark` engine.
+
+---
+
+## 1. Running the P2P Network
+
+The Autarky network is fully distributed. You can run multiple nodes locally or connect to remote peers globally.
+
+**Start the Genesis Node (Node A)**
 ```bash
-cp state.json.example state.json
-(Note: state.json is git-ignored to protect your local nonce and identity).
+HTTP_PORT=3000 P2P_PORT=6000 node server.js
 
-2. The Autarky Contract (main.aut)
+```
 
-The default contract proves resource injection and linear consumption by mathematically combining the system resources. Both SYS_COMPUTE and SYS_CREDITS must be consumed exactly once for the compiler to generate the proof:
+*This initializes `chain_3000.json` and opens a WebSocket server on port 6000.*
 
-Code snippet
-# main.aut
-# Proving resource injection for the atk-mint protocol
+**Start a Peer Node (Node B)**
 
-add 
-    (mul SYS_COMPUTE 10) 
-    SYS_CREDITS
-3. Run the Validator Node
+```bash
+HTTP_PORT=3001 P2P_PORT=6001 PEERS=ws://localhost:6000 node server.js
 
-Execute the Node client to wake the native engine, generate a cryptographic proof, and broadcast the block:
+```
 
-Bash
-node atkMintClient.js <compute_amount> <credits_amount>
+*Node B will instantly connect to Node A, compare ledger heights, and automatically download the longest valid chain to achieve consensus.*
 
-# Example:
-# node atkMintClient.js 10 5
-📡 Network Broadcast
+---
 
-Upon successful local validation and signing, the client will broadcast a JSON payload containing the mathematical proof and the signer's public key to the decentralized network.
+## 2. Wallet & Account Management
+
+When you interact with the Autarky network, you act as a sovereign entity governed by cryptography.
+
+**How to find your `atk-mint` address**
+Your address is your cryptographic public key. Open the `state.json` file in your root directory. The long alphanumeric string labeled `"address"` is your unique identity on the network.
+
+**How to get someone to send you coins (Receiving)**
+Simply copy the `"address"` string from `state.json` and share it. Because it is a public key, it acts like a secure mailbox. Anyone can drop coins into it, but only your local engine (holding the private key) can spend them.
+
+**How to check your balance**
+The network calculates your exact balance dynamically by scanning the entire immutable ledger. Open your web browser or use `curl` to hit your local node:
+
+```bash
+http://localhost:3000/balance/<YOUR_ADDRESS_HERE>
+
+```
+
+---
+
+## 3. Transacting in the Economy
+
+**Mine New Coins (Proof of Work)**
+To generate new `atk-mint` coins, run the standalone mining client. This will burn CPU cycles to find a qualifying SHA-256 hash and mint a block reward:
+
+```bash
+node atkMintClient.js
+
+```
+
+**Send Coins (Peer-to-Peer Transfers)**
+To move existing `atk-mint` to another sovereign identity, use the transfer client. The network prevents double-spending by verifying you have the funds before approving the block.
+
+```bash
+# Usage: node atkTransfer.js <recipient_address> <amount>
+node atkTransfer.js 99abc123def456fakeaddress 50
+
+```
+
+---
+
+## 4. Using Mark (Decentralized VCS)
+
+Mark allows you to permanently anchor your code history to the Autarky blockchain.
+
+**Initialize a Repository**
+
+```bash
+node mark.js init
+
+```
+
+**Anchor a Code Commit**
+This command hashes your workspace, wakes the `atk` engine to process the gas fee, forces your CPU to solve a Proof of Work puzzle, and broadcasts the commit to the P2P network.
+
+```bash
+node mark.js commit "Initial project release for Autarky"
+
+```
+
+**View the Immutable Log**
+Read your code's history directly from the blockchain ledger.
+
+```bash
+node mark.js log
+
+```
+
+---
+
+## System Files Overview
+
+* `server.js`: The core Layer-1 node (Express HTTP + WebSocket P2P).
+* `atkMintClient.js`: The standalone Proof of Work miner.
+* `atkTransfer.js`: The digital wallet client for sending funds.
+* `mark.js`: The Layer-2 Decentralized Version Control application.
+* `state.json`: Your local sovereign identity (Address and Nonce tracker).
+* `chain_<PORT>.json`: The immutable, cryptographically secured global ledger.
+* `bin/atk`: The compiled Rust execution engine (MacOS).

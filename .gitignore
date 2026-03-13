@@ -1,9 +1,15 @@
-autarky_compiler/
+# Node dependencies
 node_modules/
-.env
-*.ll
-*.key
+
+# Mac OS folder attributes
+.DS_Store
+
+# Autarky / Mark VCS hidden directories
+.mark/
+
+# Sovereign Identity (NEVER COMMIT THIS - Contains your private signing address/nonce)
 state.json
-ledger.json
-node_modules/
+
+# Local Blockchain Ledgers
 chain.json
+chain_*.jsonautarky_compiler/target/

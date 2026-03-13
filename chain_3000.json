@@ -1,0 +1,51 @@
+[
+  {
+    "block_height": 1,
+    "timestamp": 1773379593070,
+    "network_hash": "6257c955ff705b1a90fd298ba98d7b5a720444417d14dd7e51c436e0bf3960c5",
+    "payload": "{\"injected_resources\":{\"compute\":10,\"credits\":5},\"nonce\":3,\"status\":\"success\",\"timestamp\":1773379593,\"type\":\"Int\",\"vm_result\":\"Int(105)\"}",
+    "proof_signature": "2f898e1fbb2f260cb31172c7731c138aec3ecfac820e8825dd5cfd1afa4668888aed4e61e862585741d359e34426d9db9e9957ba8799547a7e4f901bc1acf802",
+    "signer_pubkey": "32bd9b3ed7c6be16393e23d46a2dd0a10321e10fdacc4ee7a97a1900920f8033"
+  },
+  {
+    "height": 2,
+    "timestamp": 1773426216678,
+    "type": "MINT",
+    "hash": "0000819060ba24b7e1eb09de0a79f94d193a894377e2c03facab7ee1024a127d",
+    "payload": "{\"injected_resources\":{\"compute\":10,\"credits\":5},\"nonce\":4,\"status\":\"success\",\"timestamp\":1773426216,\"type\":\"Int\",\"vm_result\":\"Int(105)\"}",
+    "proof_signature": "4eee2005aa7ac760776c3541311396a83ced88a16d97da974c27d892c602741465d9693a2eea23ff5798e1c443b14dde29dcd75da1794d4752b61a5570313d05",
+    "signer_pubkey": "32bd9b3ed7c6be16393e23d46a2dd0a10321e10fdacc4ee7a97a1900920f8033",
+    "nonce": 4,
+    "mining_nonce": 12024,
+    "vm_result": "Int(105)"
+  },
+  {
+    "height": 3,
+    "timestamp": 1773426423360,
+    "type": "MINT",
+    "hash": "0000dcb04af387107c0d4e33f19687b4ee9aebcc83fb672325cb5aeff2ded47c",
+    "payload": "{\"injected_resources\":{\"compute\":10,\"credits\":5},\"nonce\":5,\"status\":\"success\",\"timestamp\":1773426423,\"type\":\"Int\",\"vm_result\":\"Int(105)\"}",
+    "proof_signature": "a96afe4e194efc8d5ed3f55f35295cbbc6a197dac999d3cff83950d822a67eb387ee9cc1612f8b5a6383d17e5582fa8376303cbac568c599cf46e8bfb76dce02",
+    "signer_pubkey": "32bd9b3ed7c6be16393e23d46a2dd0a10321e10fdacc4ee7a97a1900920f8033",
+    "nonce": 5,
+    "mining_nonce": 140193,
+    "vm_result": "Int(105)",
+    "mark_commit": {
+      "message": "Initial project release for Autarky",
+      "tree_hash": "38f31135cd042224f704222cc04f4c94f43b915d55d34ab189260c71af2dcb20"
+    }
+  },
+  {
+    "height": 4,
+    "timestamp": 1773427463385,
+    "type": "MINT",
+    "hash": "00000bc962a0e0264260150ac9104fe5224a8f11e74b668d978cc4f87b615e74",
+    "previousHash": "0000dcb04af387107c0d4e33f19687b4ee9aebcc83fb672325cb5aeff2ded47c",
+    "payload": "{\"injected_resources\":{\"compute\":10,\"credits\":5},\"nonce\":6,\"status\":\"success\",\"timestamp\":1773427463,\"type\":\"Int\",\"vm_result\":\"Int(105)\"}",
+    "proof_signature": "4a4f914e83c1442c0a934610ebad3a0e62ccf0a8613f876b4763fe95de65f8fb524efa52a9d4d3f94e4276340b05b3b6ed4cdf24c1ee05153604b89a8a37a307",
+    "signer_pubkey": "32bd9b3ed7c6be16393e23d46a2dd0a10321e10fdacc4ee7a97a1900920f8033",
+    "nonce": 6,
+    "mining_nonce": 11374,
+    "vm_result": "Int(105)"
+  }
+]
