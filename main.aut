@@ -1,11 +1,6 @@
 # main.aut
-# Secure OOM (Out of Memory) Troubleshooter Contract
+# Proving resource injection for the atk-mint protocol
 
-# This function defines the "cost" of a memory scan
-let fix_oom = \credit. \compute.
-    # Logic: Add compute hours to the scan process
-    add compute 100 
-
-# EXECUTION PHASE
-# We must use exactly one credit and all compute hours
-fix_oom SYS_CREDITS SYS_COMPUTE
+add 
+    (mul SYS_COMPUTE 10) 
+    SYS_CREDITS
