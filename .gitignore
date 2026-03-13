@@ -2,3 +2,4 @@ autarky_compiler/
 node_modules/
 .env
 *.ll
+*.key

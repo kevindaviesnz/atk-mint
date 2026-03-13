@@ -1,15 +1,11 @@
-# Autarky v0.1 - The Ultimate Math Test
-# Formula: ((10.5 * 2.0) + 14.0) / 2.0 - 5.0
-# Expected Native & VM Result: 12.5
+# main.aut
+# Secure OOM (Out of Memory) Troubleshooter Contract
 
-# The \init lambda catches the runner's starting argument
-\init . 
-    sub 
-        (div 
-            (add 
-                (mul 10.5 2.0) 
-                14.0
-            ) 
-            2.0
-        ) 
-        5.0
+# This function defines the "cost" of a memory scan
+let fix_oom = \credit. \compute.
+    # Logic: Add compute hours to the scan process
+    add compute 100 
+
+# EXECUTION PHASE
+# We must use exactly one credit and all compute hours
+fix_oom SYS_CREDITS SYS_COMPUTE
