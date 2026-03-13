@@ -5,3 +5,5 @@ node_modules/
 *.key
 state.json
 ledger.json
+node_modules/
+chain.json
