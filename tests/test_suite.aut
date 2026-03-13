@@ -1,0 +1,10 @@
+;; tests/test_suite.aut - Protocol Verification
+(let run_test (lambda (mint_key)
+  ;; 1. Mint 1000 units
+  (unpack (mint_asset mint_key 1000) (lambda (k t)
+    ;; 2. Split into 200 (payment) and 800 (change)
+    (unpack (split_token t 200) (lambda (pay change)
+      ;; 3. Burn the change to clean state
+      (let burned (burn_asset change))
+      ;; 4. Return the payment token and the key
+      (pair k pay))))))

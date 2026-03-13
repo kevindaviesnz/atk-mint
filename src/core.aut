@@ -1,0 +1,19 @@
+;; core.aut - Foundations of atk-mint
+(let make_token (lambda (s) (lambda (q) (pair s q))))
+
+(let split_token (lambda (t) (lambda (a)
+  (unpack t (lambda (s q) (pair (pair s a) (pair s (sub q a))))))))
+
+(let merge_tokens (lambda (t1) (lambda (t2)
+  (unpack t1 (lambda (s1 q1) (unpack t2 (lambda (s2 q2)
+    (match (eq s1 s2) (pair s1 (add q1 q2)) (pair s1 q1))))))))
+
+(let atomic_swap (lambda (a1) (lambda (a2) (lambda (p)
+  (unpack a1 (lambda (s1 q1) (unpack a2 (lambda (s2 q2)
+    (match (eq q2 p) (pair (pair s1 q2) (pair s2 q1)) (pair (pair s1 q1) (pair s2 q2))))))))))
+
+(let mint_asset (lambda (k) (lambda (q)
+  (unpack k (lambda (ks ki) (match (eq ks 001)
+    (pair (pair ks ki) (pair 100 q)) (pair (pair ks ki) (pair 000 0))))))))
+
+(let burn_asset (lambda (t) (unpack t (lambda (s q) (sub q q)))))

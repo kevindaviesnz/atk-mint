@@ -1,0 +1,46 @@
+;; ==========================================================
+;; ATK-MINT: Autonomous DevOps Extension
+;; Purpose: Infrastructure Leasing and Diagnostic Credits
+;; ==========================================================
+
+;; [1] LEASE COMPUTE
+;; Consumes a standard token and returns a Lease Certificate (ID 999) 
+;; and the remaining change.
+(let lease_compute
+  (lambda (token)
+    (lambda (cost_per_hour)
+      (lambda (hours_requested)
+        (let total_cost (mul cost_per_hour hours_requested))
+        (unpack (split_token token total_cost) (lambda (payment change)
+          (pair 
+            (pair 999 total_cost) ;; 999 = ExecutionLease ID
+            change)))))))
+
+;; [2] AUTHORIZE DEBUG
+;; Validates and consumes exactly one Diagnostic Credit (ID 777).
+;; Returns a pair of (Status, RemainingCredits).
+;; Status: 1 for Success, 0 for Failure.
+(let authorize_debug
+  (lambda (diag_token)
+    (unpack diag_token (lambda (symbol quantity)
+      (match (eq symbol 777) ;; Verify it is a Diagnostic Credit
+        (match (eq quantity 0)
+          ;; Case: No credits left
+          (pair 0 (pair symbol 0))
+          ;; Case: Success - consume 1, return remainder
+          (pair 1 (pair symbol (sub quantity 1))))
+        ;; Case: Wrong token type provided
+        (pair 0 (pair symbol quantity)))))))
+
+;; [3] RECLAIM LEASE
+;; Terminates a lease and burns the remaining value.
+(let reclaim_lease
+  (lambda (lease_cert)
+    (unpack lease_cert (lambda (symbol value)
+      (match (eq symbol 999)
+        (sub value value) ;; Burn the compute hours
+        0)))))
+
+;; ==========================================================
+;; End of DevOps Module
+;; ==========================================================

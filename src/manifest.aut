@@ -1,0 +1,9 @@
+;; src/manifest.aut - Multi-Module Dispatcher
+(lambda (request_id)
+  (match (eq request_id 1)
+    core.aut
+    (match (eq request_id 2)
+      devops.aut
+      (match (eq request_id 3)
+        tests/test_suite.aut
+        0))))
