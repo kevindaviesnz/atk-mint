@@ -155,8 +155,5 @@ node mark.js checkout 0000a802b3b02ed987db0f98ee2927147d41997e8ad80e2fa7c3136ee1
 
 ```
 
-This positions the project not just as a fun weekend hack, but as a serious computer science endeavor. 
-
-Would you like me to write out the quick Git commands to commit this final README update to GitHub before we log off for the afternoon?
 
 ```
