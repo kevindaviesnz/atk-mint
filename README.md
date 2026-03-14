@@ -153,7 +153,3 @@ node mark.js checkout 0000a802b3b02ed987db0f98ee2927147d41997e8ad80e2fa7c3136ee1
 * `chain_<PORT>.json`: The immutable, cryptographically secured global ledger.
 * `bin/atk`: The compiled Rust execution engine (MacOS).
 
-```
-
-
-```
