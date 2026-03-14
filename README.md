@@ -1,6 +1,4 @@
 
-
-```markdown
 # Autarky (`atk-mint`) & Mark VCS
 
 Autarky is a sovereign, Layer-1 blockchain protocol built on physical Proof of Work and cryptographic execution. It features a native smart contract engine (`atk`) enforcing linear type safety to prevent double-spending at the machine-code level.
