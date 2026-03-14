@@ -1,67 +1,91 @@
 const fs = require('fs');
 const crypto = require('crypto');
 
-const STATE_FILE = './state.json';
-const RPC_ENDPOINT = "http://localhost:3000/transfer";
+// ---------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------
+const SERVER_URL = 'http://localhost:3000';
+const DIFFICULTY = 4;
+const CHAIN_FILE = './chain_3000.json';
+const WALLET_FILE = './wallet.json';
 
-// Get command line arguments
-const recipient = process.argv[2];
-const amount = parseInt(process.argv[3], 10);
+const args = process.argv.slice(2);
+const recipient = args[0];
+const amount = args[1];
 
-if (!recipient || isNaN(amount) || amount <= 0) {
+if (!recipient || !amount) {
     console.log("Usage: node atkTransfer.js <recipient_address> <amount>");
     process.exit(1);
 }
 
-if (!fs.existsSync(STATE_FILE)) {
-    console.error("❌ State file missing. Cannot sign transaction.");
+if (!fs.existsSync(WALLET_FILE)) {
+    console.log("🚨 ERROR: wallet.json not found. You need a secure wallet to send funds.");
     process.exit(1);
 }
 
-let state = JSON.parse(fs.readFileSync(STATE_FILE));
-const senderAddress = state.address;
-const currentNonce = state.next_nonce;
+const keys = JSON.parse(fs.readFileSync(WALLET_FILE));
+const SIGNER_PUBKEY = keys.publicKey;
 
-console.log(`\n[Autarky Wallet] Preparing Transfer...`);
-console.log(`[From]: ${senderAddress.substring(0, 12)}...`);
-console.log(`[To]:   ${recipient.substring(0, 12)}...`);
-console.log(`[Amt]:  ${amount} ATK`);
+function getNextNonce() {
+    if (!fs.existsSync(CHAIN_FILE)) return 1;
+    const chain = JSON.parse(fs.readFileSync(CHAIN_FILE));
+    const userBlocks = chain.filter(b => b.signer_pubkey === SIGNER_PUBKEY);
+    if (userBlocks.length === 0) return 1;
+    return Math.max(...userBlocks.map(b => b.nonce || 0)) + 1;
+}
 
-// Generate a cryptographic hash of the transaction to act as the signature payload
-// In production, this is signed by the private key corresponding to the public address
-const txString = `${senderAddress}-${recipient}-${amount}-${currentNonce}`;
-const signature = crypto.createHash('sha256').update(txString).digest('hex');
+// ---------------------------------------------------------
+// Transfer Execution
+// ---------------------------------------------------------
+async function transfer() {
+    console.log(`\n[Autarky Wallet] Initiating secure transfer of ${amount} atk-mint...`);
+    console.log(`[To]: ${recipient.substring(0,32)}...`);
+    
+    const nonce = getNextNonce();
+    let miningNonce = 0;
+    let blockHash = '';
+    const targetPrefix = '0'.repeat(DIFFICULTY);
 
-const payload = {
-    sender: senderAddress,
-    recipient: recipient,
-    amount: amount,
-    nonce: currentNonce,
-    signature: signature
-};
+    console.log(`⛏️  Performing Proof of Work to anchor transaction...`);
+    while (true) {
+        const dataToHash = `${SIGNER_PUBKEY}-${nonce}-${miningNonce}`;
+        blockHash = crypto.createHash('sha256').update(dataToHash).digest('hex');
+        if (blockHash.startsWith(targetPrefix)) break;
+        miningNonce++;
+    }
 
-async function broadcastTransfer() {
+    // ASYMMETRIC CRYPTOGRAPHY: Sign the transaction
+    const dataToSign = Buffer.from(`${SIGNER_PUBKEY}-${nonce}-${miningNonce}`);
+    const privKeyObj = crypto.createPrivateKey({ key: Buffer.from(keys.privateKey, 'hex'), format: 'der', type: 'pkcs8' });
+    const signature = crypto.sign(null, dataToSign, privKeyObj).toString('hex');
+
+    const payload = {
+        signer_pubkey: SIGNER_PUBKEY,
+        nonce: nonce,
+        mining_nonce: miningNonce,
+        signature: signature,
+        type: 'TRANSFER',
+        recipient: recipient,
+        amount: amount,
+        mark_commit: false
+    };
+
     try {
-        console.log(`📡 Broadcasting signed transaction to the network...`);
-        const response = await fetch(RPC_ENDPOINT, {
+        const response = await fetch(`${SERVER_URL}/mine`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-
+        
+        const result = await response.json();
         if (response.ok) {
-            console.log(`\n✅ TRANSFER ACCEPTED: Funds successfully moved!`);
-            
-            // Advance the local state only on network consensus
-            state.next_nonce = currentNonce + 1;
-            fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+            console.log(`✅ SUCCESS: Transfer complete! Network Receipt: ${blockHash}\n`);
         } else {
-            const errorData = await response.json().catch(() => ({}));
-            console.error(`\n🚨 NETWORK REJECTED: ${errorData.error}`);
+            console.log(`🚨 REJECTED: ${result.error}\n`);
         }
-    } catch (error) {
-        console.error("❌ Failed to connect to the Autarky node.", error.message);
+    } catch (e) {
+        console.log(`🚨 ERROR: Could not connect to Autarky node. Is server.js running?\n`);
     }
 }
 
-broadcastTransfer();
+transfer();

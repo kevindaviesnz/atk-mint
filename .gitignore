@@ -12,4 +12,7 @@ state.json
 
 # Local Blockchain Ledgers
 chain.json
-chain_*.jsonautarky_compiler/target/
+chain_*.json
+autarky_compiler/target/
+wallet.json
+node_modules/

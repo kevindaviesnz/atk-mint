@@ -3,26 +3,54 @@
     "height": 0,
     "timestamp": 1710565200000,
     "type": "GENESIS",
-    "signer_pubkey": "32bd9b3ed7c6be16393e23d46a2dd0a10321e10fdacc4ee7a97a1900920f8033",
+    "signer_pubkey": "302a300506032b65700321001dc0f3a5c9fcd51e16945fb5396a0757f38c2550997966e57116ba70d05abffb",
     "vm_result": "Int(100000000000)",
     "hash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
     "previousHash": "0"
   },
   {
     "height": 1,
-    "timestamp": 1773467810274,
+    "timestamp": 1773517178643,
     "type": "MINT",
-    "hash": "00004a759746f524fe220598a54f358aea74c8c0b214b8404abd7da8c7f32089",
+    "hash": "0000017e33b4dfc74ac81e02c56de88d4b0c23002a9e80afdb0f0af72d105c57",
     "previousHash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
-    "payload": "{\"injected_resources\":{\"compute\":10,\"credits\":5},\"nonce\":2784,\"status\":\"success\",\"timestamp\":1773467810,\"type\":\"Int\",\"vm_result\":\"Int(105)\"}",
-    "proof_signature": "aa4b2012385ef6f19dd7e9ace56a65b260ba76ccf2169b50360f532ed526dde124d086931063ebdd68b563e9d4d34608c64c52f47043be010ee6846dc1a17000",
-    "signer_pubkey": "32bd9b3ed7c6be16393e23d46a2dd0a10321e10fdacc4ee7a97a1900920f8033",
-    "nonce": 2784,
-    "mining_nonce": 229098,
+    "signer_pubkey": "302a300506032b65700321001dc0f3a5c9fcd51e16945fb5396a0757f38c2550997966e57116ba70d05abffb",
+    "nonce": 1,
+    "mining_nonce": 151859,
+    "signature": "910348857ca4163ae6ebe08c81bdb1092ecfe9ed4453d74bb57a9f7ff4de7984db1cc188b788cab8047a4cf0728131c216c587eefdb17437976bd56c87b92c07",
     "vm_result": "Int(105)",
-    "mark_commit": {
-      "message": "Genesis commit on the Autarky Mainnet",
-      "tree_hash": "e7f1aca88640ee7c049a81b1544833d40c91610e14285371f3d0f7276e19c963"
-    }
+    "mark_commit": true,
+    "message": "Secure genesis block",
+    "treeHash": "34ce22756c744476e3901763cde6a906c1cdbec3a34e91d6d06ff8061a458845"
+  },
+  {
+    "height": 2,
+    "timestamp": 1773517805400,
+    "type": "MINT",
+    "hash": "0000033675226982a99033078eaf1e07ed97348e6e5012538e0dcc4c50ab0ef2",
+    "previousHash": "0000017e33b4dfc74ac81e02c56de88d4b0c23002a9e80afdb0f0af72d105c57",
+    "signer_pubkey": "302a300506032b65700321001dc0f3a5c9fcd51e16945fb5396a0757f38c2550997966e57116ba70d05abffb",
+    "nonce": 2,
+    "mining_nonce": 72211,
+    "signature": "11ec27d19adce817518ba5f3cf114b733458f57c4e3edc87be194ed9f6edaeb349fcb6fa4103652998fa754bed7b51489e0caf494c38ac72b4b330fdbba05606",
+    "vm_result": "Int(105)",
+    "mark_commit": true,
+    "message": "Updated Autarky Whitepaper and security architecture",
+    "treeHash": "ec01d392c1d28d9f1ab691416680ac057f0c9845e09b56e983c9f56a9abfa570"
+  },
+  {
+    "height": 3,
+    "timestamp": 1773518766781,
+    "type": "MINT",
+    "hash": "00008c30ff226f00c652e0014de797e61d405ef0cb3cabe81bca4d6aaf75895c",
+    "previousHash": "0000033675226982a99033078eaf1e07ed97348e6e5012538e0dcc4c50ab0ef2",
+    "signer_pubkey": "302a300506032b65700321001dc0f3a5c9fcd51e16945fb5396a0757f38c2550997966e57116ba70d05abffb",
+    "nonce": 3,
+    "mining_nonce": 104416,
+    "signature": "426ede23a0d4d268eb2235d5d9b9f4b08ae1aa07554663676571f34da4e67665dc4bc6f317dd37d1a72663e1b869e66d7538336dee03f8a55a3f96b6a75b6f01",
+    "vm_result": "Int(105)",
+    "mark_commit": true,
+    "message": "Refined messaging to emphasize tamper-proof architecture",
+    "treeHash": "a8d690f812c2a36bca29d986e650d8ee566293de3af63e91fa2583b6c13828c4"
   }
 ]
