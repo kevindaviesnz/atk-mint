@@ -2,213 +2,233 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const crypto = require('crypto');
-const WebSocket = require('ws'); 
+const WebSocket = require('ws');
+const nacl = require('tweetnacl');
+
+// Enable BigInt serialization for JSON
+BigInt.prototype.toJSON = function() { return this.toString(); };
 
 const HTTP_PORT = process.env.HTTP_PORT || 3000;
 const P2P_PORT = process.env.P2P_PORT || 6000;
-const INITIAL_PEERS = process.env.PEERS ? process.env.PEERS.split(',') : [];
+const CHAIN_FILE = `./chain_${HTTP_PORT}.json`;
 
-const CHAIN_FILE = `./chain_${HTTP_PORT}.json`; 
-const WALLET_FILE = './wallet.json';
-const DIFFICULTY = 4;
+// --- The "Hack Killer" Constants ---
+const INITIAL_DIFFICULTY = 8; // 🛡️ Hard wall for hackers (Network Base)
+const MAX_REORG_DEPTH = 10; 
+const STAKE_DIFFICULTY_MULTIPLIER = 10000000000n; // 🛡️ 10 Billion ATK per reduction
 
 const app = express();
 app.use(bodyParser.json());
-let sockets = []; 
+let sockets = [];
+let mineQueue = Promise.resolve();
 
-// Assign Genesis Pre-mine to local wallet if it exists
-let GENESIS_ADDRESS = '32bd9b3ed7c6be16393e23d46a2dd0a10321e10fdacc4ee7a97a1900920f8033'; // Fallback to old key
-if (fs.existsSync(WALLET_FILE)) {
-    GENESIS_ADDRESS = JSON.parse(fs.readFileSync(WALLET_FILE)).publicKey;
+function buildCanonicalString(b) {
+    return `${b.signer_pubkey}|${b.nonce}|${b.mining_nonce}|${b.recipient || ''}|${b.amount || ''}|${b.type}|${b.vm_result || ''}|${b.mark_commit || false}|${b.compiler_payload_raw || ''}|${b.compiler_signature || ''}|${b.compiler_pubkey || ''}|${b.difficulty || INITIAL_DIFFICULTY}`;
 }
+
+const GENESIS_ADDRESS = '302a300506032b657003210083411777f268293212a776deea48c0212d08b43bd05dfb27d7b81e9417037f67'; 
 
 const GENESIS_BLOCK = {
     height: 0,
-    timestamp: 1710565200000, 
+    timestamp: 1710565200000,
     type: 'GENESIS',
     signer_pubkey: GENESIS_ADDRESS,
-    vm_result: 'Int(100000000000)', 
-    hash: '000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f', 
-    previousHash: '0'
+    nonce: 0,
+    mining_nonce: 0,
+    vm_result: 'Int(100000000000)',
+    previousHash: '0',
+    difficulty: INITIAL_DIFFICULTY
 };
+GENESIS_BLOCK.hash = crypto.createHash('sha256').update(buildCanonicalString(GENESIS_BLOCK)).digest('hex');
 
-const MessageType = { QUERY_LATEST: 0, QUERY_ALL: 1, RESPONSE_BLOCKCHAIN: 2 };
+// --- Blockchain Core Logic ---
 
 function loadChain() {
     if (!fs.existsSync(CHAIN_FILE)) {
-        console.log('📦 Initializing fresh ledger with the Genesis Block...');
+        console.log(`📦 [Port ${HTTP_PORT}] Initializing Fixed-Base Stake-Weighted Ledger...`);
         saveChain([GENESIS_BLOCK]);
         return [GENESIS_BLOCK];
     }
-    return JSON.parse(fs.readFileSync(CHAIN_FILE));
+    const chain = JSON.parse(fs.readFileSync(CHAIN_FILE), (key, value) => {
+        if (key === 'amount' || (typeof value === 'string' && /^\d+$/.test(value) && key.includes('balance'))) return BigInt(value);
+        return value;
+    });
+    
+    if (!isChainValid(chain)) {
+        console.error("🚨 CRITICAL ERROR: Local chain fails validation.");
+        process.exit(1);
+    }
+    return chain;
 }
 
-function saveChain(chain) {
-    fs.writeFileSync(CHAIN_FILE, JSON.stringify(chain, null, 2));
+function saveChain(chain) { 
+    fs.writeFileSync(CHAIN_FILE, JSON.stringify(chain, null, 2)); 
 }
-
-let blockchain = loadChain();
 
 function getBalance(address, chain) {
-    let balance = 0;
+    let balance = 0n;
     chain.forEach(block => {
         if ((block.type === 'MINT' || block.type === 'GENESIS') && block.signer_pubkey === address) {
-            const match = block.vm_result.match(/Int\((\d+)\)/);
+            const match = block.vm_result.match(/Int\((-?\d+)\)/);
             if (match) {
-                const amount = parseInt(match[1], 10);
-                if (block.mark_commit) balance -= amount; // Gas Burn
-                else balance += amount; // Mining Reward
+                const amount = BigInt(match[1]);
+                if (block.mark_commit) balance -= amount;
+                else balance += amount;
             }
         }
-        if (block.type === 'TRANSFER' && block.recipient === address) balance += parseInt(block.amount, 10);
-        if (block.type === 'TRANSFER' && block.sender === address) balance -= parseInt(block.amount, 10);
+        if (block.type === 'TRANSFER') {
+            const amt = BigInt(block.amount);
+            if (block.recipient === address) balance += amt;
+            if (block.signer_pubkey === address) balance -= amt;
+        }
     });
     return balance;
 }
 
-// ---------------------------------------------------------
-// P2P Networking Functions
-// ---------------------------------------------------------
+function getDifficulty(chain, minerAddress) {
+    // 🛡️ Lock the base difficulty so the Billionaire doesn't accidentally subsidize the network
+    let baseDiff = INITIAL_DIFFICULTY; 
+    
+    // Stake Weighting Logic
+    if (minerAddress) {
+        const balance = getBalance(minerAddress, chain);
+        const reduction = Number(balance / STAKE_DIFFICULTY_MULTIPLIER);
+        return Math.max(1, baseDiff - reduction); 
+    }
+    return baseDiff;
+}
+
+function verifyBlockSignature(block) {
+    try {
+        if (block.type === 'GENESIS') return true;
+        const pubKeyObj = crypto.createPublicKey({ key: Buffer.from(block.signer_pubkey, 'hex'), format: 'der', type: 'spki' });
+        return crypto.verify(null, Buffer.from(buildCanonicalString(block)), pubKeyObj, Buffer.from(block.signature, 'hex'));
+    } catch (e) { return false; }
+}
+
+function isChainValid(chain) {
+    if (chain[0].hash !== GENESIS_BLOCK.hash) return false;
+    for (let i = 1; i < chain.length; i++) {
+        const b = chain[i];
+        const prevBlock = chain[i - 1];
+        
+        const historicalDiff = getDifficulty(chain.slice(0, i), b.signer_pubkey);
+        if (b.difficulty !== historicalDiff) return false; 
+
+        const rehash = crypto.createHash('sha256').update(buildCanonicalString(b)).digest('hex');
+        if (b.previousHash !== prevBlock.hash || rehash !== b.hash || !rehash.startsWith('0'.repeat(historicalDiff))) return false;
+        if (!verifyBlockSignature(b)) return false;
+    }
+    return true;
+}
+
+// --- P2P Networking ---
+
+const MessageType = { QUERY_LATEST: 0, QUERY_ALL: 1, RESPONSE_BLOCKCHAIN: 2 };
+
 function initP2PServer() {
     const server = new WebSocket.Server({ port: P2P_PORT });
-    server.on('connection', ws => initConnection(ws));
-    console.log(`🌐 P2P WebSocket Server listening on port ${P2P_PORT}`);
-}
-
-function initConnection(ws) {
-    sockets.push(ws);
-    initMessageHandler(ws);
-    initErrorHandler(ws);
-    write(ws, queryChainLengthMsg());
-}
-
-function initMessageHandler(ws) {
-    ws.on('message', data => {
-        const message = JSON.parse(data);
-        switch (message.type) {
-            case MessageType.QUERY_LATEST: write(ws, responseLatestMsg()); break;
-            case MessageType.QUERY_ALL: write(ws, responseChainMsg()); break;
-            case MessageType.RESPONSE_BLOCKCHAIN: handleBlockchainResponse(message); break;
-        }
+    server.on('connection', ws => {
+        sockets.push(ws);
+        ws.on('message', data => {
+            const msg = JSON.parse(data);
+            if (msg.type === MessageType.QUERY_LATEST) write(ws, { 'type': MessageType.RESPONSE_BLOCKCHAIN, 'data': JSON.stringify([blockchain[blockchain.length - 1]]) });
+            if (msg.type === MessageType.RESPONSE_BLOCKCHAIN) handleResponse(msg);
+        });
+        write(ws, { 'type': MessageType.QUERY_LATEST });
     });
+    console.log(`🌐 P2P WebSocket Listening: ${P2P_PORT}`);
 }
 
-function initErrorHandler(ws) {
-    const closeConnection = (ws) => { sockets.splice(sockets.indexOf(ws), 1); };
-    ws.on('close', () => closeConnection(ws));
-    ws.on('error', () => closeConnection(ws));
-}
-
-function connectToPeers(newPeers) {
-    newPeers.forEach(peer => {
-        const ws = new WebSocket(peer);
-        ws.on('open', () => initConnection(ws));
+function handleResponse(message) {
+    const received = JSON.parse(message.data, (key, value) => {
+        if (key === 'amount' || (typeof value === 'string' && /^\d+$/.test(value) && key.includes('balance'))) return BigInt(value);
+        return value;
     });
-}
-
-function handleBlockchainResponse(message) {
-    const receivedData = JSON.parse(message.data);
-    const receivedBlocks = receivedData.filter(b => b !== null);
-    if (receivedBlocks.length === 0) return;
-    receivedBlocks.sort((b1, b2) => (b1.height - b2.height));
-    const latestBlockReceived = receivedBlocks[receivedBlocks.length - 1];
-    const latestBlockHeld = blockchain[blockchain.length - 1];
-    if (latestBlockReceived.height > latestBlockHeld.height) {
-        if (latestBlockHeld.hash === latestBlockReceived.previousHash) {
-            blockchain.push(latestBlockReceived);
+    if (received.length === 0) return;
+    
+    const latestReceived = received[received.length - 1];
+    const latestHeld = blockchain[blockchain.length - 1];
+    
+    if (latestReceived.height > latestHeld.height) {
+        if (latestHeld.hash === latestReceived.previousHash) {
+            blockchain.push(latestReceived);
             saveChain(blockchain);
-            broadcast(responseLatestMsg());
-        } else if (receivedBlocks.length === 1) {
-            broadcast(queryAllMsg());
+            broadcast({ 'type': MessageType.RESPONSE_BLOCKCHAIN, 'data': JSON.stringify([latestHeld]) });
+        } else if (received.length === 1) {
+            broadcast({ 'type': MessageType.QUERY_ALL });
         } else {
-            blockchain = receivedBlocks;
-            saveChain(blockchain);
-            broadcast(responseLatestMsg());
+            if (isChainValid(received) && received.length > blockchain.length) {
+                const checkpoint = Math.max(0, blockchain.length - MAX_REORG_DEPTH);
+                let validReorg = true;
+                for (let i = 0; i < checkpoint; i++) {
+                    if (blockchain[i].hash !== received[i].hash) validReorg = false;
+                }
+                if (validReorg) {
+                    blockchain = received;
+                    saveChain(blockchain);
+                    broadcast({ 'type': MessageType.RESPONSE_BLOCKCHAIN, 'data': JSON.stringify([blockchain[blockchain.length - 1]]) });
+                }
+            }
         }
     }
 }
 
-const queryChainLengthMsg = () => ({ 'type': MessageType.QUERY_LATEST });
-const queryAllMsg = () => ({ 'type': MessageType.QUERY_ALL });
-const responseChainMsg = () => ({ 'type': MessageType.RESPONSE_BLOCKCHAIN, 'data': JSON.stringify(blockchain) });
-const responseLatestMsg = () => ({ 'type': MessageType.RESPONSE_BLOCKCHAIN, 'data': JSON.stringify([blockchain[blockchain.length - 1]]) });
-const write = (ws, message) => ws.send(JSON.stringify(message));
-const broadcast = (message) => sockets.forEach(socket => write(socket, message));
+function write(ws, message) { ws.send(JSON.stringify(message)); }
+function broadcast(message) { sockets.forEach(s => write(s, message)); }
 
-// ---------------------------------------------------------
-// HTTP API Endpoints
-// ---------------------------------------------------------
-app.get('/balance/:address', (req, res) => {
-    res.json({ address: req.params.address, balance: getBalance(req.params.address, blockchain) });
-});
+// --- API ---
 
-app.get('/peers', (req, res) => {
-    res.json(sockets.map(s => s._socket.remoteAddress + ':' + s._socket.remotePort));
+app.get('/chain', (req, res) => res.json(blockchain));
+
+app.get('/status/:address', (req, res) => {
+    const userBlocks = blockchain.filter(b => b.signer_pubkey === req.params.address);
+    const nextNonce = userBlocks.length === 0 ? 1 : Math.max(...userBlocks.map(b => b.nonce || 0)) + 1;
+    res.json({ nonce: nextNonce, currentDifficulty: getDifficulty(blockchain, req.params.address) });
 });
 
 app.post('/addPeer', (req, res) => {
-    connectToPeers([req.body.peer]);
-    res.json({ message: "Peer added" });
+    const ws = new WebSocket(req.body.peer);
+    ws.on('open', () => { sockets.push(ws); write(ws, { 'type': MessageType.QUERY_LATEST }); });
+    res.send({ message: "Peer added." });
 });
 
 app.post('/mine', (req, res) => {
-    const payload = req.body;
-    
-    // 1. ASYMMETRIC SIGNATURE VERIFICATION (The Un-hackable Lock)
-    try {
-        const pubKeyBuffer = Buffer.from(payload.signer_pubkey, 'hex');
-        const pubKeyObj = crypto.createPublicKey({ key: pubKeyBuffer, format: 'der', type: 'spki' });
-        const dataToVerify = Buffer.from(`${payload.signer_pubkey}-${payload.nonce}-${payload.mining_nonce}`);
-        const isValid = crypto.verify(null, dataToVerify, pubKeyObj, Buffer.from(payload.signature, 'hex'));
+    mineQueue = mineQueue.then(async () => {
+        const payload = req.body;
+        if (!verifyBlockSignature(payload)) return res.status(401).json({ error: "Invalid signature." });
+
+        const currentBalance = getBalance(payload.signer_pubkey, blockchain);
+        let requiredAmount = 0n;
         
-        if (!isValid) return res.status(401).json({ error: "Invalid signature. Spoofing attempt detected." });
-    } catch (err) {
-        return res.status(400).json({ error: "Malformed public key or signature." });
-    }
+        if (payload.mark_commit) {
+            try {
+                const rawPayload = payload.compiler_payload_raw.trim();
+                const isCompilerValid = nacl.sign.detached.verify(
+                    Buffer.from(rawPayload), Buffer.from(payload.compiler_signature, 'hex'), Buffer.from(payload.compiler_pubkey, 'hex')
+                );
+                if (!isCompilerValid) return res.status(401).json({ error: "Compiler signature mismatch." });
+                const secureData = JSON.parse(rawPayload);
+                if (payload.vm_result !== secureData.vm_result || secureData.nonce !== payload.nonce) return res.status(400).json({ error: "Compiler data mismatch." });
+            } catch (e) { return res.status(400).json({ error: "Security check failed." }); }
+            const match = payload.vm_result.match(/Int\((-?\d+)\)/);
+            if (match) requiredAmount = BigInt(match[1]);
+        }
 
-    // 2. STATE TRANSITION & DOUBLE-SPEND FIREWALL
-    const currentBalance = getBalance(payload.signer_pubkey, blockchain);
-    let requiredAmount = 0;
-    
-    if (payload.mark_commit) {
-        const match = payload.vm_result.match(/Int\((\d+)\)/);
-        if (match) requiredAmount = parseInt(match[1], 10);
-    } else if (payload.type === 'TRANSFER') {
-        requiredAmount = parseInt(payload.amount, 10);
-    }
+        if (currentBalance < requiredAmount) return res.status(400).json({ error: "Insufficient funds." });
 
-    if (currentBalance < requiredAmount) {
-        return res.status(400).json({ error: `Insufficient funds to pay Gas. Balance: ${currentBalance}, Required: ${requiredAmount}` });
-    }
-
-    // 3. PROOF OF WORK VERIFICATION
-    const targetPrefix = '0'.repeat(DIFFICULTY);
-    const dataToHash = `${payload.signer_pubkey}-${payload.nonce}-${payload.mining_nonce}`;
-    const hash = crypto.createHash('sha256').update(dataToHash).digest('hex');
-
-    if (!hash.startsWith(targetPrefix)) return res.status(400).json({ error: "Hash does not meet network difficulty." });
-
-    // 4. REPLAY ATTACK PREVENTION
-    const lastTx = blockchain.slice().reverse().find(b => b.signer_pubkey === payload.signer_pubkey);
-    if (lastTx && payload.nonce <= lastTx.nonce) return res.status(400).json({ error: "Nonce too low. Replay attack prevented." });
-
-    const block = {
-        height: blockchain.length,
-        timestamp: Date.now(),
-        type: 'MINT',
-        hash: hash,
-        previousHash: blockchain[blockchain.length - 1].hash,
-        ...payload
-    };
-    
-    blockchain.push(block);
-    saveChain(blockchain);
-    
-    console.log(`🧱 [SECURE BLOCK MINED] Height: ${block.height} | Gas Burned: ${block.vm_result}`);
-    broadcast(responseLatestMsg());
-    
-    res.json({ message: "Block securely anchored", block: block });
+        const diff = getDifficulty(blockchain, payload.signer_pubkey);
+        const hash = crypto.createHash('sha256').update(buildCanonicalString(payload)).digest('hex');
+        if (!hash.startsWith('0'.repeat(diff))) return res.status(400).json({ error: "Invalid Proof of Work." });
+        
+        blockchain.push({ height: blockchain.length, timestamp: Date.now(), hash, previousHash: blockchain[blockchain.length - 1].hash, difficulty: diff, ...payload });
+        saveChain(blockchain);
+        console.log(`🧱 [BLOCK MINED] Height: ${blockchain.length - 1} | Diff: ${diff}`);
+        broadcast({ 'type': MessageType.RESPONSE_BLOCKCHAIN, 'data': JSON.stringify([blockchain[blockchain.length - 1]]) });
+        res.json({ message: "Success", hash });
+    }).catch(err => console.error(err));
 });
 
-app.listen(HTTP_PORT, () => console.log(`[HTTP Layer] Autarky Secure API listening on port ${HTTP_PORT}`));
+let blockchain = loadChain();
+app.listen(HTTP_PORT, () => console.log(`🚀 Autarky HTTP Online: ${HTTP_PORT}`));
 initP2PServer();
