@@ -1,91 +1,102 @@
-# Autarky (`atk-mint`) & Mark VCS
+# 🛡️ Autarky Network (ATK-MINT)
 
-Autarky is a sovereign, Layer-1 blockchain protocol built on physical Proof of Work and cryptographic execution. It features a native smart contract engine (`atk`) enforcing linear type safety to prevent double-spending at the machine-code level.
+> **A fully autonomous, mathematically verifiable Layer 1 Blockchain and decentralized economy.**
 
-Built on top of Autarky is **Mark**, a decentralized Version Control System (VCS). Mark serves as the fundamental utility layer for the `atk-mint` cryptocurrency, requiring developers to burn `atk-mint` as computational gas to permanently anchor their physical code history to an immutable ledger.
+Autarky is a lightweight, high-security Proof-of-Work (PoW) blockchain built from the ground up. It features a custom formal-verification compiler (written in Rust), a peer-to-peer gossip protocol (Hydra), and dynamic Nakamoto Consensus—all orchestrated by a lean Node.js runtime.
 
----
-
-## 🛡️ The World's Most Tamper-Proof Cryptocurrency
-
-Autarky is engineered to be the most mathematically tamper-proof cryptocurrency in existence. It achieves this through fundamental computer science at the compiler level and military-grade cryptography at the edge:
-
-1. **Compiler-Enforced Linear Type Safety:** Unlike Ethereum's Solidity, where tokens are mutable numbers vulnerable to reentrancy attacks, the `atk` engine treats assets as *linear types*. At the machine-code level, a memory resource must be consumed exactly once. It is mathematically impossible to duplicate or drop a coin inside the execution engine.
-2. **Reentrancy Immunity:** Autarky's execution model is structurally immune to the exploits that affected the Ethereum DAO. By using a serialized `mineQueue` and a language that lacks external call instructions, the state is deterministically updated before any further execution can occur.
-3. **Sovereign Minting Authority:** All new currency issuance is cryptographically signed by an authorized Autarky Compiler. Verification is decentralized across all nodes via a pinned `compiler.pub` anchor, while the signing secret remains in the hands of the sovereign authority.
-4. **Thermodynamic Proof of Work:** Consensus is achieved by the undeniable expenditure of physical energy (SHA-256). Every transaction and code commit is irreversibly anchored to real-world thermodynamic laws.
-5. **Asymmetric Cryptographic Sovereignty:** Identities are secured by Ed25519 ECC. Your `wallet.json` is further hardened with AES-256-GCM encryption, ensuring your private keys remain secure even if the file is exfiltrated.
+**[🌐 View the Live Network Explorer](https://kevindaviesnz.github.io/atk-mint/explorer.html)**
 
 ---
 
-## 🚀 Quick Start (Production Setup)
+## ⚠️ Beta Software & Liability Disclaimer
+**ATK-MINT IS EXPERIMENTAL BETA SOFTWARE.**
+By cloning, compiling, running, or transacting on this network, you explicitly acknowledge that this is an experimental peer-to-peer system. You accept all risks associated with its use, including but not limited to the potential loss of funds, loss of data, or network failures. The creators and contributors hold **zero liability**. 
 
-The v3 protocol requires a one-time cryptographic initialization to establish your Network Anchor and secure your local wallet.
+**Do not use this software for high-value financial transactions.**
+
+---
+
+## ✨ Core Architecture
+
+* **The Vault (Rust VM):** All transactions are formally verified by a custom, strictly-scoped Rust binary (`atk`) before they can enter the mempool. It only understands linear, predictable logic to prevent smart-contract vulnerabilities.
+* **Nakamoto Consensus:** The network dynamically adjusts mining difficulty based on global hash power to maintain steady block times.
+* **The Hydra Protocol:** Nodes communicate via a custom WebSocket P2P gossip protocol on Port 6000, ensuring state consensus and automatically resolving chain splits in favor of the heaviest chain.
+* **Ed25519 Cryptography:** Wallets and transactions are secured using military-grade Ed25519 elliptic curve signatures.
+
+---
+
+## 🚀 Quick Start (For Users)
+
+Want to join the economy? You don't need to run a server to transact. Just use the built-in CLI client.
+
+### 1. Clone & Setup
+```bash
+git clone [https://github.com/kevindaviesnz/atk-mint.git](https://github.com/kevindaviesnz/atk-mint.git)
+cd atk-mint
+npm install
+
+```
+
+### 2. Generate Your Sovereign Identity
+
+To interact with the network, you must first generate a local keypair. This will create a `wallet.json` file. **Keep this file secure and never commit it to Git.**
 
 ```bash
-# 1. Download and run the safe setup script
-source setup.sh
-This script will:
+node mark.js init --accept-risks
 
-Generate your AUTARKY_COMPILER_SECRET: Your unique 32-byte signing seed.
+```
 
-Derive compiler.pub: The public anchor for your network.
+### 3. Check Your Balance & Address
 
-Generate a high-entropy WALLET_PASS: Used to encrypt your local wallet.json.
+```bash
+node mark.js address
+node mark.js balance
 
-IMPORTANT: Save the WALLET_PASS printed by the script. You must export WALLET_PASS=<your_pass> in every new terminal session to use the mark VCS.
+```
 
-🏗️ Architectural & OS Compatibility
-Networking: Node.js 20+ required.
+### 4. Send ATK
 
-MacOS: Native execution via bin/atk.
+Send funds to another public key. Your CPU will automatically grind the Proof-of-Work to mine the transfer into the global ledger.
 
-Linux/Cloud: Fully supported via the multi-stage Dockerfile. The Docker build compiles the Rust engine into a Linux-native binary automatically.
+```bash
+node mark.js transfer <RECIPIENT_PUBLIC_KEY> <AMOUNT>
 
-Core Architecture
-Layer 1: The Protocol (atk-mint)
+```
 
-The Engine (bin/atk): A custom Rust-based compiler that executes contracts and charges gas. It requires AUTARKY_COMPILER_SECRET for signing MINT operations.
+---
 
-The Central Bank (server.js): The decentralized ledger. It uses compiler.pub to verify that all rewards are legitimate and enforces the Double-Spend Firewall.
+## 🖥️ Run a Full Node (For Miners/Operators)
 
-The P2P Network: A decentralized WebSocket gossip protocol. Max 25 peers per node to prevent Eclipse DoS attacks.
+Want to decentralize the network and process transactions? You can spin up an Autarky Vault using Docker.
 
-Layer 2: The Application (mark)
+1. Ensure Docker and OpenSSL are installed on your machine.
+2. Run the initialization script to generate your node's sovereign compiler secret:
+```bash
+./setup.sh
 
-Decentralized VCS: Uses atk-mint as digital oil. To anchor a code commit, mark invokes the atk engine, pays the fee, and performs PoW.
+```
 
-Wallet Security: Your wallet.json is encrypted with AES-256-GCM. Without your WALLET_PASS, the private keys are mathematically inaccessible.
 
-🛡️ Security Configurations
-Network Verification (compiler.pub)
+3. Deploy the generated `node.env` file and the `Dockerfile` to your server.
+4. Open ports **3000 (HTTP API)** and **6000 (P2P Protocol)** on your firewall.
 
-To verify the integrity of the ledger, every node must host a compiler.pub file in its root directory. This acts as the cryptographic anchor for the protocol's "tamper-proof" claims.
+---
 
-Official Autarky v3 Public Key:
-e024de58d987fa9716acde7e08634c5353d3c491df35e6ba0875bebac962e1c9
+## 📊 The Web3 Explorer
 
-To set this up, run:
+Autarky features a native, browser-based Analytics Dashboard that reads directly from the blockchain state to display the global rich list, circulating supply, and a live block feed.
 
-Bash
-echo "e024de58d987fa9716acde7e08634c5353d3c491df35e6ba0875bebac962e1c9" > compiler.pub
-Sovereign Key Management (AUTARKY_COMPILER_SECRET)
+It runs entirely client-side and can be accessed securely here:
+👉 **[Autarky Global Dashboard](https://www.google.com/url?sa=E&source=gmail&q=https://kevindaviesnz.github.io/atk-mint/explorer.html)**
 
-The root of trust for all minting operations. This must be a cryptographically secure 32-byte value (64-character hex). Generate one using:
+---
 
-Bash
-openssl rand -hex 32
-Inject this into the environment at runtime. Never hardcode this value or commit it to version control.
+## 📜 License
 
-System Files Overview
-server.js: The core Layer-1 node (HTTP API + P2P).
+MIT License. See `LICENSE` for details.
 
-mark.js: The Layer-2 VCS application.
+```
 
-setup.sh: Automated cryptographic environment initialization.
+***
 
-compiler.pub: The public Network Anchor for reward verification.
 
-wallet.json: Your local identity (Encrypted Ed25519 Keypair).
-
-chain_<PORT>.json: The immutable global ledger.
