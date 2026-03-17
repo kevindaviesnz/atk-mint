@@ -175,7 +175,10 @@
                 feed.innerHTML = '';
                 const blocks = blockData.blocks.reverse();
 
-                blocks.forEach(block => {
+                // 🛑 THE RENDER SHIELD: Only draw the 50 most recent blocks!
+                const displayBlocks = blocks.slice(0, 50);
+
+                displayBlocks.forEach(block => {
                     const isTransfer = block.type === 'TRANSFER';
                     const isGenesis = block.type === 'GENESIS';
                     const badgeColor = isTransfer ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 
