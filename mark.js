@@ -1,35 +1,44 @@
-require('dotenv').config();
 const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
-const os = require('os');
-const { execSync } = require('child_process');
+const path = require('path');
+const WALLET_FILE = path.join(__dirname, 'wallet.json');
+const SERVER_URL = 'https://atk-mint-vault.duckdns.org';
 
-// --------------------------------------------------
-// Configuration
-// --------------------------------------------------
-const SERVER_URL = 'http://23.95.216.127:3000'; 
-const WALLET_FILE = 'wallet.json';
-const ATK_BINARY = os.platform() === 'linux' ? './bin/atk-linux' : './bin/atk';
+// Colors for the Terminal
+const CYAN = '\x1b[36m';
+const GREEN = '\x1b[32m';
+const YELLOW = '\x1b[33m';
+const RESET = '\x1b[0m';
+const BOLD = '\x1b[1m';
 
-const command = process.argv[2];
-const args = process.argv.slice(3);
+function log(msg) { console.log(`${CYAN}[ATK-Mint]${RESET} ${msg}`); }
 
-// --------------------------------------------------
-// Identity & Wallet
-// --------------------------------------------------
-function getWallet() {
-    if (!fs.existsSync(WALLET_FILE)) return null;
-    try { return JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8')); } 
-    catch (e) { return null; }
+function initWallet() {
+    if (fs.existsSync(WALLET_FILE)) return log(`${YELLOW}Wallet already exists.${RESET}`);
+    const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519', {
+        publicKeyEncoding: { type: 'spki', format: 'der' },
+        privateKeyEncoding: { type: 'pkcs8', format: 'der' }
+    });
+    fs.writeFileSync(WALLET_FILE, JSON.stringify({
+        publicKey: publicKey.toString('hex'),
+        privateKey: privateKey.toString('hex')
+    }, null, 2));
+    log(`${GREEN}${BOLD}Sovereign Identity Created!${RESET} Saved to wallet.json`);
 }
 
-const wallet = getWallet();
-const SIGNER_PUBKEY = wallet ? String(wallet.publicKey) : "";
+function getWallet() {
+    if (!fs.existsSync(WALLET_FILE)) {
+        console.error("No wallet found. Run 'node mark.js init' first.");
+        process.exit(1);
+    }
+    return JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8'));
+}
 
-// --------------------------------------------------
-// Cryptography Helpers
-// --------------------------------------------------
+async function getNonceAndHash(pubkey) {
+    const res = await fetch(`${SERVER_URL}/nonce/${pubkey}`);
+    return await res.json();
+}
+
 function buildCanonicalString(b) {
     return [
         String(b.signer_pubkey || ""), String(b.nonce ?? "0"), String(b.mining_nonce ?? "0"),
@@ -40,166 +49,95 @@ function buildCanonicalString(b) {
     ].join('|');
 }
 
-// --------------------------------------------------
-// Core Logic: Commit (Mint)
-// --------------------------------------------------
-async function commitCode(message) {
-    console.log("[Mark VCS] Starting Fort Knox Commit Process...");
-    if (!wallet) return console.log("❌ No wallet found! Run 'node mark.js init --accept-risks'");
+async function commit(message) {
+    const wallet = getWallet();
+    log(`Syncing with ${BOLD}ATK-Mint Vault${RESET}...`);
+    
+    const { nonce, previousHash } = await getNonceAndHash(wallet.publicKey);
+    const diffRes = await fetch(`${SERVER_URL}/difficulty`);
+    const { difficulty } = await diffRes.json();
 
-    try {
-        const nonceRes = await fetch(`${SERVER_URL}/nonce/${SIGNER_PUBKEY}`);
-        const nonceData = await nonceRes.json();
-        const nonce = nonceData.nonce ?? 0;
-        const previousHash = nonceData.previousHash ?? "0";
-        
-        const balRes = await fetch(`${SERVER_URL}/balance/${SIGNER_PUBKEY}`);
-        const balData = await balRes.json();
-        const rawBalanceString = String(balData.balance); 
+    log(`Mining Block #${nonce} | Difficulty: ${difficulty}...`);
 
-        if (!fs.existsSync('.mark')) fs.mkdirSync('.mark');
-        const gasFile = '.mark/gas.aut';
-        const gasScript = `(SYS_COMPUTE, SYS_CREDITS)`;
-        fs.writeFileSync(gasFile, gasScript);
-        
-        console.log(`[Mark VCS] Verifying Linear Logic with Local Compiler...`);
-        const output = execSync(`${ATK_BINARY} --file ${gasFile} --json --nonce ${nonce} --compute 1000 --credits ${rawBalanceString}`, { stdio: 'pipe' }).toString().trim();
-        const compilerData = JSON.parse(output);
-        
-        let payload = { 
-            signer_pubkey: SIGNER_PUBKEY, nonce, type: 'MINT', mark_commit: true, 
-            vm_result: String(compilerData.vm_result || "Int(0)"), compiler_payload_raw: gasScript,
-            compiler_signature: String(compilerData.proof_signature || ""), compiler_pubkey: String(compilerData.signer_pubkey || ""),
-            previousHash: String(previousHash), message: message || "One Rule to Rule Them All", treeHash: "0" 
-        };
+    let block = {
+        signer_pubkey: wallet.publicKey,
+        nonce: nonce,
+        type: "MINT",
+        message: message,
+        vm_result: "Int(500)", // Fixed mining reward
+        previousHash: previousHash
+    };
 
-        const diffRes = await fetch(`${SERVER_URL}/difficulty`);
-        const diffData = await diffRes.json();
-        const networkDifficulty = diffData.difficulty;
+    let mining_nonce = 0;
+    const target = '0'.repeat(difficulty);
+    const start = Date.now();
 
-        console.log(`⛏️  Mining (Dynamic Difficulty: ${networkDifficulty})...`);
-        let miningNonce = 0;
-        const target = '0'.repeat(networkDifficulty);
-        const startTime = Date.now();
-        
-        while (true) {
-            payload.mining_nonce = miningNonce;
-            const hash = crypto.createHash('sha256').update(buildCanonicalString(payload)).digest('hex');
-            if (hash.startsWith(target)) { payload.hash = hash; break; }
-            miningNonce++;
-            if (miningNonce % 500000 === 0) process.stdout.write('.');
+    while (true) {
+        block.mining_nonce = mining_nonce;
+        const hash = crypto.createHash('sha256').update(buildCanonicalString(block)).digest('hex');
+        if (hash.startsWith(target)) {
+            block.hash = hash;
+            break;
         }
-        
-        console.log(`\n✅ Block Mined in ${((Date.now() - startTime) / 1000).toFixed(2)}s!`);
-
-        const privKeyObj = crypto.createPrivateKey({ key: Buffer.from(wallet.privateKey, 'hex'), format: 'der', type: 'pkcs8' });
-        payload.signature = crypto.sign(null, Buffer.from(buildCanonicalString(payload)), privKeyObj).toString('hex');
-
-        const payloadPath = 'pending_block.json';
-        fs.writeFileSync(payloadPath, JSON.stringify(payload, null, 2));
-        console.log(`\x1b[36mcurl -X POST -H "Content-Type: application/json" -d @${payloadPath} ${SERVER_URL}/mine\x1b[0m\n`);
-
-    } catch (e) { console.error(`\n🚨 COMPILER ERROR: ${e.message}`); }
-}
-
-// --------------------------------------------------
-// Core Logic: Transfer (New!)
-// --------------------------------------------------
-async function transferFunds(recipientPubKey, amount) {
-    console.log(`[Mark VCS] Initiating Transfer of ${amount} ATK-MINT...`);
-    if (!wallet) return console.log("❌ No wallet found! Run 'node mark.js init --accept-risks'");
-
-    try {
-        const nonceRes = await fetch(`${SERVER_URL}/nonce/${SIGNER_PUBKEY}`);
-        const nonceData = await nonceRes.json();
-        const nonce = nonceData.nonce ?? 0;
-        const previousHash = nonceData.previousHash ?? "0";
-
-        let payload = { 
-            signer_pubkey: SIGNER_PUBKEY, 
-            nonce, 
-            type: 'TRANSFER', 
-            recipient: recipientPubKey,
-            amount: String(amount),
-            previousHash: String(previousHash)
-        };
-
-        const diffRes = await fetch(`${SERVER_URL}/difficulty`);
-        const diffData = await diffRes.json();
-        const networkDifficulty = diffData.difficulty;
-
-        console.log(`⛏️  Mining Transfer (Dynamic Difficulty: ${networkDifficulty})...`);
-        let miningNonce = 0;
-        const target = '0'.repeat(networkDifficulty);
-        const startTime = Date.now();
-        
-        while (true) {
-            payload.mining_nonce = miningNonce;
-            const hash = crypto.createHash('sha256').update(buildCanonicalString(payload)).digest('hex');
-            if (hash.startsWith(target)) { payload.hash = hash; break; }
-            miningNonce++;
-            if (miningNonce % 500000 === 0) process.stdout.write('.');
-        }
-        
-        console.log(`\n✅ Transfer Mined in ${((Date.now() - startTime) / 1000).toFixed(2)}s!`);
-
-        const privKeyObj = crypto.createPrivateKey({ key: Buffer.from(wallet.privateKey, 'hex'), format: 'der', type: 'pkcs8' });
-        payload.signature = crypto.sign(null, Buffer.from(buildCanonicalString(payload)), privKeyObj).toString('hex');
-
-        const payloadPath = 'pending_transfer.json';
-        fs.writeFileSync(payloadPath, JSON.stringify(payload, null, 2));
-        
-        console.log(`\n--- READY FOR TRANSMISSION ---`);
-        console.log(`Run this command to push the transfer to the network:`);
-        console.log(`\x1b[36mcurl -X POST -H "Content-Type: application/json" -d @${payloadPath} ${SERVER_URL}/mine\x1b[0m\n`);
-
-    } catch (e) { console.error(`\n🚨 ERROR: ${e.message}`); }
-}
-
-// --------------------------------------------------
-// Router
-// --------------------------------------------------
-async function main() {
-    switch (command) {
-        case 'init':
-            if (args[0] !== '--accept-risks') {
-                console.log("\n===========================================================");
-                console.log("⚠️  WARNING: ATK-MINT IS EXPERIMENTAL BETA SOFTWARE ⚠️");
-                console.log("===========================================================");
-                console.log("By generating a wallet, you acknowledge that this is an");
-                console.log("experimental network. You accept all risks, including the");
-                console.log("potential loss of funds or data. The creators hold no liability.");
-                console.log("===========================================================\n");
-                console.log("To proceed and generate your sovereign identity, run:\n");
-                console.log("\x1b[36mnode mark.js init --accept-risks\x1b[0m\n");
-                return;
-            }
-
-            if (fs.existsSync(WALLET_FILE)) return console.log('✅ Wallet already exists.');
-            const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519', {
-                publicKeyEncoding: { type: 'spki', format: 'der' },
-                privateKeyEncoding: { type: 'pkcs8', format: 'der' }
-            });
-            fs.writeFileSync(WALLET_FILE, JSON.stringify({ publicKey: publicKey.toString('hex'), privateKey: privateKey.toString('hex') }, null, 2));
-            console.log(`✅ Terms accepted. Wallet generated and saved.`);
-            break;
-            
-        case 'commit': await commitCode(args[0]); break;
-        case 'transfer': await transferFunds(args[0], args[1]); break;
-        case 'balance': 
-            try {
-                const res = await fetch(`${SERVER_URL}/balance/${SIGNER_PUBKEY}`);
-                const data = await res.json();
-                console.log(`\n💰 Balance: ${data.balance} ATK-MINT\n`);
-            } catch (e) { console.log("❌ Could not reach server."); }
-            break;
-            
-        case 'address': 
-            if (wallet) console.log(`\n📬 Address: ${SIGNER_PUBKEY}\n`);
-            break;
-            
-        default: console.log("Usage: node mark.js <init|commit|transfer|balance|address>");
+        mining_nonce++;
+        if (mining_nonce % 100000 === 0) process.stdout.write(".");
     }
+
+    const privKey = crypto.createPrivateKey({ key: Buffer.from(wallet.privateKey, 'hex'), format: 'der', type: 'pkcs8' });
+    block.signature = crypto.sign(null, Buffer.from(buildCanonicalString(block)), privKey).toString('hex');
+
+    fs.writeFileSync('pending_block.json', JSON.stringify(block, null, 2));
+    
+    const time = ((Date.now() - start) / 1000).toFixed(2);
+    console.log(`\n${GREEN}${BOLD}✔ Block Mined!${RESET} (${time}s)`);
+    console.log(`${YELLOW}Run this to broadcast:${RESET}\ncurl -X POST -H "Content-Type: application/json" -d @pending_block.json ${SERVER_URL}/mine\n`);
 }
 
-main();
+async function checkBalance() {
+    const wallet = getWallet();
+    const res = await fetch(`${SERVER_URL}/balance/${wallet.publicKey}`);
+    const data = await res.json();
+    console.log(`\n${BOLD}Wallet Address:${RESET} ${CYAN}${wallet.publicKey}${RESET}`);
+    console.log(`${BOLD}Confirmed Balance:${RESET} ${GREEN}₳ ${new Intl.NumberFormat().format(data.balance)} ATK${RESET}\n`);
+}
+
+async function transfer(to, amount) {
+    const wallet = getWallet();
+    const { nonce, previousHash } = await getNonceAndHash(wallet.publicKey);
+    
+    log(`Preparing transfer of ${BOLD}₳ ${amount}${RESET} to ${to.substring(0,10)}...`);
+
+    let block = {
+        signer_pubkey: wallet.publicKey,
+        nonce: nonce,
+        type: "TRANSFER",
+        recipient: to,
+        amount: amount,
+        previousHash: previousHash
+    };
+
+    const diffRes = await fetch(`${SERVER_URL}/difficulty`);
+    const { difficulty } = await diffRes.json();
+    const target = '0'.repeat(difficulty);
+    let mining_nonce = 0;
+
+    while (true) {
+        block.mining_nonce = mining_nonce;
+        const hash = crypto.createHash('sha256').update(buildCanonicalString(block)).digest('hex');
+        if (hash.startsWith(target)) { break; }
+        mining_nonce++;
+    }
+
+    const privKey = crypto.createPrivateKey({ key: Buffer.from(wallet.privateKey, 'hex'), format: 'der', type: 'pkcs8' });
+    block.signature = crypto.sign(null, Buffer.from(buildCanonicalString(block)), privKey).toString('hex');
+
+    fs.writeFileSync('pending_block.json', JSON.stringify(block, null, 2));
+    log(`${GREEN}Transfer Authored!${RESET} Run the curl command to send.`);
+}
+
+const [,, cmd, arg1, arg2] = process.argv;
+if (cmd === 'init') initWallet();
+if (cmd === 'address') console.log(getWallet().publicKey);
+if (cmd === 'balance') checkBalance();
+if (cmd === 'commit') commit(arg1);
+if (cmd === 'transfer') transfer(arg1, arg2);
