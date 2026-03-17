@@ -1,3 +1,7 @@
+# ===========================================================
+# 🛡️ ATK-MINT SOVEREIGN SHIELD (NEVER COMMIT THESE)
+# ===========================================================
+
 # Node dependencies
 node_modules/
 
@@ -5,24 +9,31 @@ node_modules/
 .DS_Store
 .idea/
 .vscode/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Autarky / Mark VCS hidden directories
 .mark/
 
-# Sovereign Identity & Secrets (NEVER COMMIT)
+# 🔐 SOVEREIGN IDENTITY & SECRETS (CRITICAL)
+# These files contain your private keys. If leaked, your ₳ is gone.
 autarky.key
 wallet.json
-*_wallet.json
+wallet_*.json        # Protects wallet_vault.json and wallet_minter.json
+*_wallet.json        # Catch-all for other naming conventions
+wallet_old.json      # Legacy backup protection
 .env*
 *.env
 
-# Local Blockchain Ledgers & State
+# 📜 LOCAL BLOCKCHAIN LEDGERS & STATE
+# These are large data files that should be synced via API, not Git.
 chain.json
-chain_*.json
+chain_*.json         # Protects chain_local.json
 state.json
 state.json.example
 
-# Compiled Targets & Ephemeral Data
+# 🏗️ COMPILED TARGETS & EPHEMERAL DATA
 autarky_compiler/target/
 pending_block.json
-pending_*.json
+pending_*.json       # Protects temporary mining files
