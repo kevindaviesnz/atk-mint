@@ -1,18 +1,27 @@
 # Node dependencies
 node_modules/
 
-# Mac OS folder attributes
+# OS / IDE generated files
 .DS_Store
+.idea/
+.vscode/
 
 # Autarky / Mark VCS hidden directories
 .mark/
 
-# Sovereign Identity (NEVER COMMIT THIS - Contains your private signing address/nonce)
-state.json
+# Sovereign Identity & Secrets (NEVER COMMIT)
+autarky.key
+wallet.json
+*_wallet.json
+.env*
+*.env
 
-# Local Blockchain Ledgers
+# Local Blockchain Ledgers & State
 chain.json
 chain_*.json
+state.json
+state.json.example
+
+# Compiled Targets & Ephemeral Data
 autarky_compiler/target/
-wallet.json
-node_modules/
+pending_block.json

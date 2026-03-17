@@ -1,82 +1,91 @@
 const fs = require('fs');
 const crypto = require('crypto');
 
-// ---------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------
-const SERVER_URL = 'http://localhost:3000';
-const DIFFICULTY = 4;
-const CHAIN_FILE = './chain_3000.json';
+const SERVER_URL = 'http://23.95.216.127:3000';
+const DIFFICULTY = 6; 
+
+// 🔐 Persistent Wallet System
 const WALLET_FILE = './wallet.json';
+let keys;
 
-if (!fs.existsSync(WALLET_FILE)) {
-    console.log("🚨 ERROR: wallet.json not found. Run 'node mark.js init' to generate a secure wallet first.");
-    process.exit(1);
+if (fs.existsSync(WALLET_FILE)) {
+    const data = JSON.parse(fs.readFileSync(WALLET_FILE));
+    keys = {
+        publicKey: crypto.createPublicKey({ key: Buffer.from(data.pub, 'hex'), format: 'der', type: 'spki' }),
+        privateKey: crypto.createPrivateKey({ key: Buffer.from(data.priv, 'hex'), format: 'der', type: 'pkcs8' })
+    };
+    console.log("📂 Loaded existing wallet.json");
+} else {
+    keys = crypto.generateKeyPairSync('ed25519');
+    fs.writeFileSync(WALLET_FILE, JSON.stringify({
+        pub: keys.publicKey.export({ format: 'der', type: 'spki' }).toString('hex'),
+        priv: keys.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('hex')
+    }, null, 2));
+    console.log("✨ Created new wallet.json");
 }
 
-const keys = JSON.parse(fs.readFileSync(WALLET_FILE));
-const SIGNER_PUBKEY = keys.publicKey;
+const pubKeyHex = keys.publicKey.export({ format: 'der', type: 'spki' }).subarray(12).toString('hex');
+const privateKey = keys.privateKey;
 
-function getNextNonce() {
-    if (!fs.existsSync(CHAIN_FILE)) return 1;
-    const chain = JSON.parse(fs.readFileSync(CHAIN_FILE));
-    const userBlocks = chain.filter(b => b.signer_pubkey === SIGNER_PUBKEY);
-    if (userBlocks.length === 0) return 1;
-    return Math.max(...userBlocks.map(b => b.nonce || 0)) + 1;
+function buildCanonicalString(b) {
+    return `${b.signer_pubkey}|${b.nonce}|${b.mining_nonce}|${b.recipient || ''}|${b.amount || ''}|${b.type}|${b.vm_result || ''}|${b.mark_commit || false}|${b.compiler_payload || ''}|${b.compiler_signature || ''}|${b.compiler_pubkey || ''}|${b.previousHash}`;
 }
 
-// ---------------------------------------------------------
-// Mining Execution
-// ---------------------------------------------------------
+async function getChainState() {
+    const res = await fetch(`${SERVER_URL}/nonce/${pubKeyHex}`);
+    if (!res.ok) throw new Error("Failed to fetch state");
+    return await res.json();
+}
+
 async function mineCoin() {
-    console.log('\n[Autarky Miner] Starting standalone Proof of Work...');
-    const nonce = getNextNonce();
-    let miningNonce = 0;
-    let blockHash = '';
-    const targetPrefix = '0'.repeat(DIFFICULTY);
-    const startTime = Date.now();
-
-    while (true) {
-        const dataToHash = `${SIGNER_PUBKEY}-${nonce}-${miningNonce}`;
-        blockHash = crypto.createHash('sha256').update(dataToHash).digest('hex');
-        if (blockHash.startsWith(targetPrefix)) break;
-        miningNonce++;
-    }
-
-    const timeTaken = ((Date.now() - startTime) / 1000).toFixed(3);
-    console.log(`💎 Valid Hash Found: ${blockHash} (Time: ${timeTaken}s)`);
-
-    // ASYMMETRIC CRYPTOGRAPHY: Sign the mined block
-    const dataToSign = Buffer.from(`${SIGNER_PUBKEY}-${nonce}-${miningNonce}`);
-    const privKeyObj = crypto.createPrivateKey({ key: Buffer.from(keys.privateKey, 'hex'), format: 'der', type: 'pkcs8' });
-    const signature = crypto.sign(null, dataToSign, privKeyObj).toString('hex');
-
+    console.log(`\n[Autarky Miner] Pubkey: ${pubKeyHex.slice(0, 16)}...`);
+    const state = await getChainState();
+    
     const payload = {
-        signer_pubkey: SIGNER_PUBKEY,
-        nonce: nonce,
-        mining_nonce: miningNonce,
-        signature: signature,
-        vm_result: 'Int(50)', // Standard 50 coin block reward
-        type: 'MINT',
-        mark_commit: false
+        signer_pubkey: pubKeyHex,
+        nonce: state.nonce,
+        mining_nonce: 0,
+        type: "MINT",
+        vm_result: "Int(50)",
+        previousHash: state.previousHash
     };
 
+    console.log(`⏳ Hashing... (Difficulty ${DIFFICULTY})`);
+    let hash = "";
+    let dataStr = "";
+
+    while (true) {
+        dataStr = buildCanonicalString(payload);
+        hash = crypto.createHash('sha256').update(dataStr).digest('hex');
+        if (hash.startsWith('0'.repeat(DIFFICULTY))) break;
+        payload.mining_nonce++;
+        if (payload.mining_nonce % 500000 === 0) process.stdout.write('.');
+    }
+
+    console.log(`\n💎 Success! Hash Found: ${hash}`);
+    payload.signature = crypto.sign(null, Buffer.from(dataStr), privateKey).toString('hex');
+
     try {
-        const response = await fetch(`${SERVER_URL}/mine`, {
+        const res = await fetch(`${SERVER_URL}/mine`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        
-        const result = await response.json();
-        if (response.ok) {
-            console.log(`✅ SUCCESS: Block rewarded! 50 atk-mint added to your secure balance.\n`);
-        } else {
-            console.log(`🚨 REJECTED: ${result.error}\n`);
-        }
+        const result = await res.json();
+        if (res.ok) console.log(`✅ BLOCK ACCEPTED: 50 atk-mint added to your wallet.`);
+        else console.log(`🚨 REJECTED: ${result.error}`);
     } catch (e) {
-        console.log(`🚨 ERROR: Could not connect to Autarky node. Is server.js running?\n`);
+        console.error("❌ Failed to submit block to the server.");
     }
 }
 
-mineCoin();
+async function startMining() {
+    console.log("🚀 Autopilot Engaged. Press Ctrl+C to stop.");
+    while (true) {
+        await mineCoin();
+        console.log("⏳ Resting for 2 seconds...\n");
+        await new Promise(resolve => setTimeout(resolve, 2000)); 
+    }
+}
+
+startMining();

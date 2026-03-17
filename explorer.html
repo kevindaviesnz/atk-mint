@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autarky Block Explorer</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --panel: #161b22;
+            --text: #c9d1d9;
+            --accent: #39d353;
+            --border: #30363d;
+            --genesis: #a371f7;
+            --transfer: #58a6ff;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            color: var(--accent);
+            margin: 0;
+        }
+        .stats {
+            background: var(--panel);
+            padding: 15px 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            display: flex;
+            gap: 20px;
+        }
+        .stat-box strong {
+            display: block;
+            font-size: 0.8em;
+            text-transform: uppercase;
+            color: #8b949e;
+        }
+        .stat-box span {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        input {
+            flex: 1;
+            padding: 12px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 6px;
+            font-family: monospace;
+        }
+        button {
+            padding: 12px 24px;
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:hover { background: #2ea043; }
+        .block {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: transform 0.2s;
+        }
+        .block:hover { transform: translateX(5px); border-color: var(--accent); }
+        .block-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-family: monospace;
+        }
+        .tag {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.8em;
+        }
+        .tag-genesis { background: rgba(163, 113, 247, 0.2); color: var(--genesis); }
+        .tag-mint { background: rgba(57, 211, 83, 0.2); color: var(--accent); }
+        .tag-transfer { background: rgba(88, 166, 255, 0.2); color: var(--transfer); }
+        .data-row {
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+        .data-row strong { color: #8b949e; width: 100px; display: inline-block; }
+        .hash { font-family: monospace; color: var(--accent); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Autarky Explorer</h1>
+            <div class="stats">
+                <div class="stat-box"><strong>Network</strong><span>Online</span></div>
+                <div class="stat-box"><strong>Height</strong><span id="block-height">0</span></div>
+            </div>
+        </div>
+
+        <div class="search-bar">
+            <input type="text" id="wallet-input" placeholder="Enter Public Key to check balance...">
+            <button onclick="checkBalance()">Check Balance</button>
+        </div>
+
+        <h2>Latest Blocks</h2>
+        <div id="blocks-container">
+            <p>Loading blockchain data...</p>
+        </div>
+    </div>
+
+    <script>
+        const NODE_URL = 'http://23.95.216.127:3000';
+
+        async function fetchBlocks() {
+            try {
+                const response = await fetch(`${NODE_URL}/blocks`);
+                const data = await response.json();
+                
+                document.getElementById('block-height').innerText = data.length;
+                
+                const container = document.getElementById('blocks-container');
+                container.innerHTML = ''; 
+
+                // FIX: Map the array index to the block height before reversing!
+                data.blocks.forEach((block, index) => block.height = index);
+                const blocks = data.blocks.reverse();
+
+                blocks.forEach(block => {
+                    const date = new Date(block.timestamp).toLocaleString();
+                    const hashShort = block.hash.slice(0, 20) + '...';
+                    const pubShort = block.signer_pubkey.slice(0, 16) + '...';
+                    
+                    let tagClass = 'tag-mint';
+                    if (block.type === 'GENESIS') tagClass = 'tag-genesis';
+                    if (block.type === 'TRANSFER') tagClass = 'tag-transfer';
+
+                    let details = `<div class="data-row"><strong>Signer:</strong> <span class="hash">${pubShort}</span></div>`;
+                    
+                    if (block.type === 'TRANSFER') {
+                        details += `<div class="data-row"><strong>To:</strong> <span class="hash">${block.recipient.slice(0, 16)}...</span></div>`;
+                        details += `<div class="data-row"><strong>Amount:</strong> ${block.amount} atk-mint</div>`;
+                    } else if (block.type === 'MINT') {
+                        details += `<div class="data-row"><strong>Reward:</strong> 50 atk-mint</div>`;
+                    } else {
+                        details += `<div class="data-row"><strong>Event:</strong> The Big Bang (100 Billion Issued)</div>`;
+                    }
+
+                    const blockHTML = `
+                        <div class="block">
+                            <div class="block-header">
+                                <span><strong>Block #${block.height}</strong></span>
+                                <span class="tag ${tagClass}">${block.type}</span>
+                                <span style="color: #8b949e">${date}</span>
+                            </div>
+                            <div class="data-row"><strong>Hash:</strong> <span class="hash">${hashShort}</span></div>
+                            ${details}
+                        </div>
+                    `;
+                    container.innerHTML += blockHTML;
+                });
+            } catch (error) {
+                document.getElementById('blocks-container').innerHTML = '<p style="color: #ff7b72;">❌ Failed to connect to Autarky Node.</p>';
+            }
+        }
+
+        async function checkBalance() {
+            const pubkey = document.getElementById('wallet-input').value.trim();
+            if (!pubkey) return alert("Please enter a public key.");
+            
+            try {
+                const response = await fetch(`${NODE_URL}/balance/${pubkey}`);
+                const data = await response.json();
+                alert(`💰 Balance for ${pubkey.slice(0,8)}...\n\n${data.balance.toLocaleString()} atk-mint`);
+            } catch (error) {
+                alert("❌ Could not fetch balance. Check your node connection.");
+            }
+        }
+
+        // Fetch blocks immediately, then refresh every 5 seconds
+        fetchBlocks();
+        setInterval(fetchBlocks, 5000);
+    </script>
+</body>
+</html>

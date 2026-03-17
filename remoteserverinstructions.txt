@@ -1,0 +1,143 @@
+Deploying a blockchain node to a public-facing cloud server requires strict operational security. Now that we have air-gapped your architecture, the process is clean and highly secure.
+
+Here is the exact, step-by-step playbook for standing up your Autarky Central Bank on a hosted server (like AWS EC2, DigitalOcean, or Linode) running Ubuntu Linux.
+
+### Phase 1: Server Provisioning & Prerequisites
+
+Once you rent your server, you will connect to it from your Mac terminal via SSH:
+
+```bash
+ssh root@<YOUR_SERVER_IP>
+
+```
+
+Once inside, update the system and install the baseline tools (Node.js and Docker):
+
+```bash
+# Update Ubuntu package manager
+apt update && apt upgrade -y
+
+# Install Docker and Docker Compose
+apt install docker.io docker-compose git -y
+
+```
+
+### Phase 2: Deploying the Code
+
+Because we perfectly configured your `.gitignore`, you can safely push your code to GitHub from your Mac, and then clone it directly onto your new server.
+
+```bash
+git clone <YOUR_GITHUB_REPO_URL> autarky-node
+cd autarky-node
+
+```
+
+*Note: Because of our security setup, this clone will pull down `server.js` and `Dockerfile`, but it will **not** pull down `client.env`, `node.env`, `autarky.key`, or `wallet.json`.*
+
+### Phase 3: The Air-Gapped Injection
+
+Your server is now holding the unconfigured codebase. You must manually inject the specific server-side credentials.
+
+**1. Create the Network Anchor (`compiler.pub`)**
+Paste your official public key string into a file on the server so it knows how to verify blocks:
+
+```bash
+echo "e024de58d987fa9716acde7e08634c5353d3c491df35e6ba0875bebac962e1c9" > compiler.pub
+
+```
+
+**2. Create the Node Environment (`node.env`)**
+Create the environment file and securely paste your Sovereign Secret.
+
+```bash
+nano node.env
+
+```
+
+Paste this exact line into the file (using your actual 64-character hex secret):
+
+```text
+AUTARKY_COMPILER_SECRET=your_actual_64_char_secret_here
+
+```
+
+*(Press `Ctrl+O`, `Enter` to save, then `Ctrl+X` to exit).*
+
+Lock the file down:
+
+```bash
+chmod 600 node.env
+
+```
+
+### Phase 4: Configure the Firewall
+
+By default, cloud servers block incoming traffic. You need to explicitly open the doors for your HTTP API and your P2P WebSocket gossip network.
+
+```bash
+ufw allow 22/tcp    # Keep SSH open so you don't lock yourself out!
+ufw allow 3000/tcp  # HTTP API (Balance checks, manual transfers)
+ufw allow 6000/tcp  # P2P WebSocket Protocol (Node communication)
+ufw enable
+
+```
+
+### Phase 5: Launch the Network
+
+To ensure the node runs 24/7, restarts if it crashes, and survives server reboots, we will use Docker Compose.
+
+Here is the complete, air-gapped `docker-compose.yml` file for your server. Create this file in your `autarky-node` directory.
+
+### `docker-compose.yml`
+
+```yaml
+version: '3.8'
+
+services:
+  autarky-node:
+    build: .
+    container_name: autarky_mainnet
+    ports:
+      - "3000:3000"
+      - "6000:6000"
+    volumes:
+      # Persist the blockchain ledger outside the container
+      - ./chain_3000.json:/app/chain_3000.json
+      # Mount the public anchor
+      - ./compiler.pub:/app/compiler.pub
+    env_file:
+      # Strictly load ONLY the node profile, isolating it from any wallet data
+      - ./node.env
+    environment:
+      - HTTP_PORT=3000
+      - P2P_PORT=6000
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+```
+
+Once that file is saved on the server, launch the network in detached/background mode:
+
+```bash
+docker-compose up -d --build
+
+```
+
+---
+
+### Verification
+
+From your local MacBook in Auckland, open a terminal and ping your new cloud server's public IP:
+
+```bash
+curl http://<YOUR_SERVER_IP>:3000/blocks
+
+```
+
+If it returns your genesis block, your sovereign Layer-1 blockchain is officially live on the public internet, totally isolated from your personal wallet keys.
+
+**Would you like me to write a `Dockerfile` for this setup so the Rust compiler (`bin/atk`) is correctly built for the server's Linux architecture?**

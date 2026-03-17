@@ -1,91 +1,84 @@
+require('dotenv').config();
 const fs = require('fs');
-const crypto = require('crypto');
+const http = require('http');
 
-// ---------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------
-const SERVER_URL = 'http://localhost:3000';
-const DIFFICULTY = 4;
-const CHAIN_FILE = './chain_3000.json';
-const WALLET_FILE = './wallet.json';
+// 1. Parse Command Line Arguments
+const recipient = process.argv[2];
+const amount = parseInt(process.argv[3], 10);
 
-const args = process.argv.slice(2);
-const recipient = args[0];
-const amount = args[1];
-
-if (!recipient || !amount) {
+if (!recipient || isNaN(amount)) {
+    console.log("Autarky Transfer Client");
     console.log("Usage: node atkTransfer.js <recipient_address> <amount>");
     process.exit(1);
 }
 
-if (!fs.existsSync(WALLET_FILE)) {
-    console.log("🚨 ERROR: wallet.json not found. You need a secure wallet to send funds.");
+// 2. Load Local Sovereign Identity
+if (!fs.existsSync('wallet.json')) {
+    console.log("❌ wallet.json is missing. Cannot authorize transfer.");
     process.exit(1);
 }
 
-const keys = JSON.parse(fs.readFileSync(WALLET_FILE));
-const SIGNER_PUBKEY = keys.publicKey;
-
-function getNextNonce() {
-    if (!fs.existsSync(CHAIN_FILE)) return 1;
-    const chain = JSON.parse(fs.readFileSync(CHAIN_FILE));
-    const userBlocks = chain.filter(b => b.signer_pubkey === SIGNER_PUBKEY);
-    if (userBlocks.length === 0) return 1;
-    return Math.max(...userBlocks.map(b => b.nonce || 0)) + 1;
+if (!process.env.WALLET_PASS) {
+    console.log("❌ WALLET_PASS is missing in .env. Cannot unlock private key.");
+    process.exit(1);
 }
 
+const walletData = JSON.parse(fs.readFileSync('wallet.json', 'utf8'));
+const senderAddress = walletData.publicKey;
+
 // ---------------------------------------------------------
-// Transfer Execution
+// ⚠️ Drop your existing AES-256-GCM decryption logic here
+// const privateKey = decrypt(walletData.encryptedPrivateKey, walletData.iv, process.env.WALLET_PASS);
+//
+// ⚠️ Drop your existing Ed25519 signing logic here
+// const signature = signTransaction(senderAddress, recipient, amount, privateKey);
 // ---------------------------------------------------------
-async function transfer() {
-    console.log(`\n[Autarky Wallet] Initiating secure transfer of ${amount} atk-mint...`);
-    console.log(`[To]: ${recipient.substring(0,32)}...`);
+
+// Construct the transaction payload
+const transactionPayload = JSON.stringify({
+    sender: senderAddress,
+    recipient: recipient,
+    amount: amount,
+    signature: "INSERT_GENERATED_SIGNATURE_HERE", // Replace with your actual signature variable
+    timestamp: Date.now()
+});
+
+console.log(`💸 Initiating transfer of ${amount} atk-mint to ${recipient.substring(0, 16)}...`);
+
+// 3. Broadcast to the Central Bank (Local Node)
+const options = {
+    hostname: 'localhost',
+    port: 3000,
+    path: '/transactions', // Adjust if your server endpoint is named differently
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(transactionPayload)
+    }
+};
+
+const req = http.request(options, (res) => {
+    let data = '';
     
-    const nonce = getNextNonce();
-    let miningNonce = 0;
-    let blockHash = '';
-    const targetPrefix = '0'.repeat(DIFFICULTY);
-
-    console.log(`⛏️  Performing Proof of Work to anchor transaction...`);
-    while (true) {
-        const dataToHash = `${SIGNER_PUBKEY}-${nonce}-${miningNonce}`;
-        blockHash = crypto.createHash('sha256').update(dataToHash).digest('hex');
-        if (blockHash.startsWith(targetPrefix)) break;
-        miningNonce++;
-    }
-
-    // ASYMMETRIC CRYPTOGRAPHY: Sign the transaction
-    const dataToSign = Buffer.from(`${SIGNER_PUBKEY}-${nonce}-${miningNonce}`);
-    const privKeyObj = crypto.createPrivateKey({ key: Buffer.from(keys.privateKey, 'hex'), format: 'der', type: 'pkcs8' });
-    const signature = crypto.sign(null, dataToSign, privKeyObj).toString('hex');
-
-    const payload = {
-        signer_pubkey: SIGNER_PUBKEY,
-        nonce: nonce,
-        mining_nonce: miningNonce,
-        signature: signature,
-        type: 'TRANSFER',
-        recipient: recipient,
-        amount: amount,
-        mark_commit: false
-    };
-
-    try {
-        const response = await fetch(`${SERVER_URL}/mine`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        
-        const result = await response.json();
-        if (response.ok) {
-            console.log(`✅ SUCCESS: Transfer complete! Network Receipt: ${blockHash}\n`);
+    res.on('data', (chunk) => {
+        data += chunk;
+    });
+    
+    res.on('end', () => {
+        if (res.statusCode === 200 || res.statusCode === 201) {
+            console.log("✅ Transaction verified and accepted into the mempool.");
+            console.log("Run 'node mark.js balance' to see your updated funds.");
         } else {
-            console.log(`🚨 REJECTED: ${result.error}\n`);
+            console.log(`❌ Transaction REJECTED by Double-Spend Firewall (Status: ${res.statusCode})`);
+            console.log(`Reason: ${data}`);
         }
-    } catch (e) {
-        console.log(`🚨 ERROR: Could not connect to Autarky node. Is server.js running?\n`);
-    }
-}
+    });
+});
 
-transfer();
+req.on('error', (e) => {
+    console.log(`❌ Failed to reach the local Autarky node: ${e.message}`);
+    console.log("   Make sure 'node server.js' is running.");
+});
+
+req.write(transactionPayload);
+req.end();
