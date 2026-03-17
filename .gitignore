@@ -25,3 +25,4 @@ state.json.example
 # Compiled Targets & Ephemeral Data
 autarky_compiler/target/
 pending_block.json
+pending_*.json

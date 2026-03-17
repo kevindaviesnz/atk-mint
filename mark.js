@@ -45,7 +45,7 @@ function buildCanonicalString(b) {
 // --------------------------------------------------
 async function commitCode(message) {
     console.log("[Mark VCS] Starting Fort Knox Commit Process...");
-    if (!wallet) return console.log("❌ No wallet found! Run 'node mark.js init'");
+    if (!wallet) return console.log("❌ No wallet found! Run 'node mark.js init --accept-risks'");
 
     try {
         const nonceRes = await fetch(`${SERVER_URL}/nonce/${SIGNER_PUBKEY}`);
@@ -107,7 +107,7 @@ async function commitCode(message) {
 // --------------------------------------------------
 async function transferFunds(recipientPubKey, amount) {
     console.log(`[Mark VCS] Initiating Transfer of ${amount} ATK-MINT...`);
-    if (!wallet) return console.log("❌ No wallet found! Run 'node mark.js init'");
+    if (!wallet) return console.log("❌ No wallet found! Run 'node mark.js init --accept-risks'");
 
     try {
         const nonceRes = await fetch(`${SERVER_URL}/nonce/${SIGNER_PUBKEY}`);
@@ -162,13 +162,26 @@ async function transferFunds(recipientPubKey, amount) {
 async function main() {
     switch (command) {
         case 'init':
+            if (args[0] !== '--accept-risks') {
+                console.log("\n===========================================================");
+                console.log("⚠️  WARNING: ATK-MINT IS EXPERIMENTAL BETA SOFTWARE ⚠️");
+                console.log("===========================================================");
+                console.log("By generating a wallet, you acknowledge that this is an");
+                console.log("experimental network. You accept all risks, including the");
+                console.log("potential loss of funds or data. The creators hold no liability.");
+                console.log("===========================================================\n");
+                console.log("To proceed and generate your sovereign identity, run:\n");
+                console.log("\x1b[36mnode mark.js init --accept-risks\x1b[0m\n");
+                return;
+            }
+
             if (fs.existsSync(WALLET_FILE)) return console.log('✅ Wallet already exists.');
             const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519', {
                 publicKeyEncoding: { type: 'spki', format: 'der' },
                 privateKeyEncoding: { type: 'pkcs8', format: 'der' }
             });
             fs.writeFileSync(WALLET_FILE, JSON.stringify({ publicKey: publicKey.toString('hex'), privateKey: privateKey.toString('hex') }, null, 2));
-            console.log(`✅ Wallet generated and saved.`);
+            console.log(`✅ Terms accepted. Wallet generated and saved.`);
             break;
             
         case 'commit': await commitCode(args[0]); break;
