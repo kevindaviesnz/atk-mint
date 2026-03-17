@@ -95,7 +95,7 @@ It runs entirely client-side and can be accessed securely here:
 
 MIT License. See `LICENSE` for details.
 
-```
+
 
 
 
