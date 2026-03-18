@@ -41,3 +41,6 @@ chain_local.json
 
 # Trash files
 *.old
+
+# Docs
+REPORT.md
