@@ -1,5 +1,7 @@
 # 🛡️ Autarky Network (ATK-MINT)
 
+## **"The World's Most Secure Node Architecture"**
+
 > **A Decoupled, Air-Gapped Architecture for Decentralized Proof-of-Work Consensus.**
 
 Autarky is a highly secure, utility-focused Layer-1 blockchain built for the cloud-computing era. By fundamentally decoupling cryptographic key management from intensive computational hashing, ATK-Mint allows operators to mine the native **₳** asset across unsecured global servers without ever exposing their financial treasury.
