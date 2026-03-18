@@ -38,3 +38,6 @@ autarky_compiler/target/
 pending_block.json
 pending_*.json       # Protects temporary mining files
 chain_local.json
+
+# Trash files
+*.old
