@@ -88,6 +88,23 @@ Once initialized, launch your miner. The engine will begin grinding hashes to di
 
 -----
 
+## ⚡ The Hacker’s Challenge: Security by Architecture
+
+ATK-Mint is built on a provocative claim: **We feature the world’s most secure node architecture.** While the network's aggregate hash rate is in its infancy, the *structural integrity* of the Autarky Protocol is designed to be mathematically and logically superior to monolithic legacy clients.
+
+### 🛡️ The "Identity Firewall" Gauntlet
+
+We invite security researchers, white-hats, and adversarial actors to test the **Identity Firewall**. In a standard cryptocurrency node, root access to a mining server equals total loss of funds. **In ATK-Mint, we believe this is impossible.**
+
+  * **The Challenge:** Breach a live ATK-Mint Sovereign Node and extract the private financial keys (`wallet.json`) from the isolated Sovereign Engine (`atk`).
+  * **The Reality:** Because the Engine is air-gapped from the network stack and logically bifurcated from the Control Layer, a total server compromise grants the attacker a "disconnected calculator," not a "bank vault."
+
+### 🧪 Why we want you to break this
+
+ATK-Mint is currently in a "Value-Zero" testing phase. If you manage to find a flaw in our architectural separation, you aren't stealing life savings—you are performing a high-velocity audit that makes the protocol stronger. Help us prove that the "Brain and Muscle" bifurcation is the future of decentralized security.
+
+-----
+
 ## 📊 The Web3 Explorer
 
 Autarky features a native, browser-based Analytics Dashboard that reads directly from the blockchain state to display the global rich list, circulating supply, and a live block feed.
@@ -100,4 +117,5 @@ It runs entirely client-side and can be accessed securely here:
 ## 📜 License
 
 MIT License. See `LICENSE` for details.
+
 
