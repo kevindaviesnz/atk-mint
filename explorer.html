@@ -125,7 +125,7 @@
             blocks.forEach(block => {
                 if (block.type === 'GENESIS' || block.type === 'MINT') {
                     const match = block.vm_result && block.vm_result.match(/Int\((-?\d+)\)/);
-                    const amount = match ? Number(match[1]) : 0;
+                    const amount = match ? Number(match) : 0;
                     balances[block.signer_pubkey] = (balances[block.signer_pubkey] || 0) + amount;
                     totalSupply += amount;
                 }
@@ -140,7 +140,7 @@
 
             const richListHtml = Object.entries(balances)
                 .filter(([address, bal]) => bal > 0)
-                .sort((a, b) => b[1] - a[1])
+                .sort((a, b) => b - a)
                 .slice(0, 5)
                 .map(([address, bal], index) => `
                     <div class="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700">
@@ -157,19 +157,38 @@
 
         async function fetchNetworkData() {
             try {
+                // Fetch Difficulty
                 const diffRes = await fetch(`${SERVER_URL}/difficulty`);
-                document.getElementById('ui-difficulty').innerText = (await diffRes.json()).difficulty;
+                const diffData = await diffRes.json();
+                document.getElementById('ui-difficulty').innerText = diffData.difficulty || "--";
 
+                // Fetch Blocks
                 const blockRes = await fetch(`${SERVER_URL}/blocks`);
-                const blockData = await blockRes.json();
-                document.getElementById('ui-height').innerText = blockData.length - 1;
+                const rawData = await blockRes.json();
+                
+                // SAFETY NET: Extract the array safely
+                let blocksArray = [];
+                if (Array.isArray(rawData)) {
+                    blocksArray = rawData;
+                } else if (rawData && Array.isArray(rawData.chain)) {
+                    blocksArray = rawData.chain;
+                } else if (rawData && Array.isArray(rawData.blocks)) {
+                    blocksArray = rawData.blocks;
+                } else {
+                    console.error("Invalid data format", rawData);
+                    document.getElementById('block-feed').innerHTML = '<p class="text-red-500 italic">Error: Invalid data format from Vault.</p>';
+                    return;
+                }
 
-                calculateAnalytics(blockData.blocks);
+                // Update UI Height (Handle edge case of 0 blocks)
+                document.getElementById('ui-height').innerText = blocksArray.length > 0 ? blocksArray.length - 1 : 0;
 
-                const feed = document.getElementById('block-feed');
-                feed.innerHTML = '';
-                const blocks = blockData.blocks.reverse();
-                const displayBlocks = blocks.slice(0, 50);
+                // Run Analytics
+                calculateAnalytics(blocksArray);
+
+                // Render Feed
+                const displayBlocks = [...blocksArray].reverse().slice(0, 50);
+                let feedHtml = ''; // Build HTML string first for performance
 
                 displayBlocks.forEach(block => {
                     const isTransfer = block.type === 'TRANSFER';
@@ -191,17 +210,17 @@
                     } else if (!isGenesis) {
                         detailsHtml = `
                             <p class="mt-3"><span class="text-slate-400 text-sm inline-block">Miner:</span> <span class="font-mono text-xs text-emerald-400" title="${block.signer_pubkey}">${truncate(block.signer_pubkey, 8)}</span></p>
-                            <p class="mt-1"><span class="text-slate-400 text-sm inline-block">Message:</span> <span class="text-white">"${block.message || ''}"</span></p>
+                            <p class="mt-1"><span class="text-slate-400 text-sm inline-block">Message:</span> <span class="text-white">"${block.message || 'Block Secured'}"</span></p>
                         `;
                     } else {
                         detailsHtml = `<p class="text-purple-300 text-sm italic mt-3">The Big Bang of the ATK-Mint Economy.</p>`;
                     }
 
-                    feed.innerHTML += `
+                    feedHtml += `
                         <div class="bg-panel p-5 rounded-xl border border-slate-700 shadow-sm hover:border-slate-500 transition-colors">
                             <div class="flex justify-between items-start mb-2">
                                 <div class="flex items-center gap-3">
-                                    <h3 class="text-lg font-bold text-white">Block #${block.height}</h3>
+                                    <h3 class="text-lg font-bold text-white">Block #${block.height || block.index || 0}</h3>
                                     <span class="text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${badgeColor}">${block.type}</span>
                                 </div>
                                 <span class="text-slate-400 text-xs font-mono">${formatTime(block.timestamp)}</span>
@@ -211,7 +230,13 @@
                         </div>
                     `;
                 });
-            } catch (e) { console.error(e); }
+
+                document.getElementById('block-feed').innerHTML = feedHtml;
+
+            } catch (e) { 
+                console.error("Fetch Error:", e);
+                document.getElementById('block-feed').innerHTML = '<p class="text-red-500 italic">Network Error: Could not reach the Vault.</p>';
+            }
         }
 
         fetchNetworkData();

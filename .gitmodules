@@ -1,0 +1,3 @@
+[submodule "bin/autarky-source"]
+	path = bin/autarky-source
+	url = https://github.com/kevindaviesnz/autarky.git
