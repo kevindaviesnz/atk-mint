@@ -1,20 +1,17 @@
-# Use a lightweight Node image
-FROM node:20-alpine
+# Use a slim, professional Node base
+FROM node:20-slim
+
+# Install curl (for miner.sh) and dos2unix (to fix Windows files)
+RUN apt-get update && apt-get install -y curl dos2unix && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# 1. Copy everything (including your pre-compiled bin/atk-linux)
+# Copy all project files
 COPY . .
 
-# 2. Install Node dependencies
-RUN npm install --production
+# CRITICAL: Fix line endings for all scripts
+RUN dos2unix miner.sh send mark.js && chmod +x miner.sh send mark.js
 
-# 3. Ensure the Linux binary has permission to execute
-RUN chmod +x bin/atk-linux
-
-# 4. Expose the Network Ports
-EXPOSE 3000
-EXPOSE 6000
-
-# 5. Start the Central Bank Node
-CMD ["node", "server.js"]
+# This allows you to pass the miner name as a parameter
+ENTRYPOINT ["./miner.sh"]
+CMD ["Docker-Miner-Global"]
