@@ -1,6 +1,36 @@
 #!/bin/bash
 
-echo "🛠️  Initializing ATK-Mint Sovereign Identity..."
+echo "🛠️  Initializing Autarky v3 Air-Gapped Environment..."
+
+# --------------------------------------------------
+# 0. OS Detection & Engine Deployment (into ./bin/)
+# --------------------------------------------------
+# This ensures 'mark.js' always finds the engine at bin/atk
+echo "Detecting Operating System..."
+OS_TYPE=$(uname -s)
+
+# Ensure the bin directory exists
+mkdir -p bin
+
+if [ "$OS_TYPE" == "Darwin" ]; then
+    echo "🍎 Mac detected. Deploying atk-mac -> bin/atk"
+    if [ -f "bin/atk-mac" ]; then
+        cp bin/atk-mac bin/atk
+        chmod +x bin/atk
+        echo "✅ Sovereign Engine (Mac) is ready in bin/"
+    else
+        echo "⚠️  Warning: bin/atk-mac not found!"
+    fi
+elif [ "$OS_TYPE" == "Linux" ]; then
+    echo "🐧 Linux detected. Deploying atk-linux -> bin/atk"
+    if [ -f "bin/atk-linux" ]; then
+        cp bin/atk-linux bin/atk
+        chmod +x bin/atk
+        echo "✅ Sovereign Engine (Linux) is ready in bin/"
+    else
+        echo "⚠️  Warning: bin/atk-linux not found!"
+    fi
+fi
 
 # --------------------------------------------------
 # 1. Handle Sovereign Secret (The Node's Identity)
@@ -64,7 +94,8 @@ if [ ! -f "wallet.json" ]; then
 fi
 
 echo "--------------------------------------------------"
-echo "🚀 Identity Setup Complete"
+echo "🚀 Air-Gapped Setup Complete"
+echo "OS Type:    $OS_TYPE"
 echo "Public Key: $(cat compiler.pub 2>/dev/null || echo 'ERROR')"
-echo "Wallet:     wallet.json (Ready for Docker Mount)"
+echo "Engine:     bin/atk"
 echo "--------------------------------------------------"

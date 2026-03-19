@@ -17,13 +17,42 @@ By cloning, compiling, running, or transacting on this network, you explicitly a
 
 -----
 
-## 🚀 Quick Start: Install the Global CLI
+## 🐳 Recommended: Universal Docker Node (Mine Anywhere)
 
-ATK-Mint features a unified Command Line Interface (CLI) that allows you to manage your wallet and mine from any directory on your system.
+The most secure and stable way to run the ATK-Mint engine is via our containerized, OS-agnostic Docker image. This guarantees a pristine Linux compilation of the Rust engine on any machine (Mac, Windows, or Linux) without polluting your host system.
+
+### Prerequisites
+* **Docker Desktop** installed and running.
+* *(Windows Users Only)*: Use **Git Bash** or WSL to run the setup script.
+
+### 1. Generate Your Sovereign Identity
+Run this locally to securely generate your unique private keys and initialize your wallet. **Never run this inside the container.**
+```bash
+./setup.sh
+```
+*(This creates your `autarky.key`, `compiler.pub`, and `wallet.json`)*
+
+### 2. Forge the Universal Engine
+Tell Docker to pull down a clean environment, compile the Rust execution engine, and package it into a lightweight, isolated container.
+```bash
+docker build -t atk-universal .
+```
+
+### 3. Start the Mining Rig
+Spin up the container and open a secure volume mount to your local wallet. The isolated engine will mine blocks and save the **₳** rewards directly to your host machine's `wallet.json`.
+```bash
+docker run -it --rm -v "$(pwd)/wallet.json:/app/wallet.json" atk-universal
+```
+
+-----
+
+## 💻 Alternative: Local CLI Installation
+
+If you prefer to run the client directly on your host machine for quick wallet management and manual transactions, you can install the global CLI.
 
 ### 1. Clone & Dependencies
 ```bash
-git clone https://github.com/kevindaviesnz/atk-mint.git
+git clone [https://github.com/kevindaviesnz/atk-mint.git](https://github.com/kevindaviesnz/atk-mint.git)
 cd atk-mint
 npm install
 ```
@@ -44,35 +73,18 @@ atk-mint init
 
 -----
 
-## 🕹️ Command Reference
+## 🕹️ Command Reference (Local CLI)
 
-Once installed, use the following commands from any terminal window:
+Once the local CLI is installed, use the following commands from any terminal window:
 
 | Command | Action |
 | :--- | :--- |
 | `atk-mint balance` | Query the Vault for your confirmed **₳** balance. |
 | `atk-mint address` | Display your Public Key (Your receiving address). |
 | `atk-mint send <ADDR> <AMT>` | Securely sign, mine, and broadcast a transfer. |
-| `atk-mint mine` | Launch the continuous Proof-of-Work mining rig. |
+| `atk-mint mine` | Launch the continuous Proof-of-Work mining rig locally. |
 
------
-
-## 🖥️ Sovereign Node Operations (Mining)
-
-Secure the network and earn the **₳ 500** block reward by running a Sovereign Engine.
-
-### Start Mining
-Launch the rig with a custom identifier for the global leaderboard:
-```bash
-atk-mint mine "My Mac Pro Rig"
-```
-
-### Background Mining
-To keep the engine running in the background while you work:
-```bash
-atk-mint mine "Background-Worker" > mining.log 2>&1 &
-```
-*To stop the background process, use `pkill -f miner.sh`.*
+*(Note: For continuous background mining, the Docker method above is highly recommended over the local CLI).*
 
 -----
 
