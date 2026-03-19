@@ -41,6 +41,7 @@ chain_local.json
 
 # Trash files
 *.old
+*.remove
 
 # Personal notes
 notes.txt
