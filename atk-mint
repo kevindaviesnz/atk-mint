@@ -1,50 +1,38 @@
 #!/bin/bash
 
-COMMAND=$1
-ARG1=$2
-ARG2=$3
+# --- Path Logic ---
+# On your Mac, we want this to point to your Dev folder.
+# Inside Docker, we want it to point to /app.
+if [ -d "/app" ]; then
+    PROJECT_DIR="/app"
+else
+    PROJECT_DIR="/Users/kevindavies/Development/AI/atk-mint"
+fi
 
-# The absolute path to your source code
-PROJECT_DIR="/Users/kevindavies/Development/AI/atk-mint"
+# Change to the project directory so Node can find wallet.json
+cd "$PROJECT_DIR" || { echo "❌ Directory not found at $PROJECT_DIR"; exit 1; }
 
-case $COMMAND in
-  send)
-    # Check if we have the required arguments for a transfer
-    if [ -z "$ARG1" ] || [ -z "$ARG2" ]; then
-      echo "Usage: atk-mint send <recipient_address> <amount>"
-      exit 1
-    fi
-    
-    # Navigate to the dir to ensure wallet.json and pending_block.json are handled correctly
-    cd $PROJECT_DIR
-    
-    echo "📦 Forging transaction..."
-    node mark.js transfer "$ARG1" "$ARG2"
-    
-    if [ ! -f pending_block.json ]; then
-      echo "❌ Error: Transaction forging failed. Aborting broadcast."
-      exit 1
-    fi
-
-    echo "🚀 Broadcasting to ATK-Mint Network..."
-    curl -s -X POST -H "Content-Type: application/json" -d @pending_block.json https://atk-mint-vault.duckdns.org/submit
-    echo -e "\n✅ Transfer script finished."
-    ;;
-
+case "$1" in
   balance)
-    node $PROJECT_DIR/mark.js balance
+    node mark.js balance
     ;;
-
   address)
-    node $PROJECT_DIR/mark.js address
+    node mark.js address
     ;;
-
-  mint)
-    node $PROJECT_DIR/mark.js commit
+  send)
+    if [ -z "$2" ] || [ -z "$3" ]; then
+      echo "Usage: atk-mint send <address> <amount>"
+    else
+      # Calling the 'send' script wrapper
+      ./send "$2" "$3"
+    fi
     ;;
-
+  mine)
+    # Starts your universal miner.sh loop
+    ./miner.sh "${2:-"Kevins-Rig"}"
+    ;;
   *)
-    echo "Usage: atk-mint [send|balance|address|mint]"
+    echo "Usage: atk-mint {balance|address|send|mine}"
     echo "Example: atk-mint send <address> 1000"
     exit 1
     ;;
