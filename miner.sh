@@ -1,43 +1,46 @@
 #!/bin/bash
 
-# Configuration
+# --- Configuration ---
 VAULT_URL="https://atk-mint-vault.duckdns.org"
-LOCAL_NODE="http://localhost:3001"
+PROJECT_DIR="/Users/kevindavies/Development/AI/atk-mint"
 USER_MESSAGE=${1:-"ATK-Mint Mining Rig"}
+
+# Ensure we are in the correct folder to access mark.js and wallet.json
+cd "$PROJECT_DIR" || exit
 
 echo "========================================="
 echo "⛏️  ATK-Mint CONTINUOUS MINING RIG"
 echo "💬 Message: $USER_MESSAGE"
 echo "🌐 Vault: $VAULT_URL"
+echo "📂 Path: $PROJECT_DIR"
 echo "========================================="
 
 while true; do
-    # 1. Mine the next block using mark.js
+    # 1. Mine the next block using mark.js (MINT type)
+    echo "⚒️  Starting mining attempt..."
     node mark.js commit "$USER_MESSAGE"
 
-    # 2. Check if a block was actually created
+    # 2. Check if a block was actually created (pending_block.json)
     if [ -f pending_block.json ]; then
         echo -e "\n🚀 Transmitting Block to Vault..."
         
-        # 3. Push directly to the Global Vault
-        RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" -d @pending_block.json "$VAULT_URL/mine")
+        # 3. Push the mined block to the Global Vault
+        RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" -d @pending_block.json "$VAULT_URL/submit")
         
-        if [[ $RESPONSE == *"Success"* ]]; then
-            echo -e "✅ Block Accepted by Vault!"
-            
-            # 4. Sync the local chain so mark.js knows the new height/nonce
-            echo "📡 Syncing local ledger..."
-            curl -s "$VAULT_URL/blocks" > chain_local.json
+        if [[ $RESPONSE == *"success\":true"* ]]; then
+            echo -e "✅ Block Accepted! Coins added to wallet."
         else
             echo -e "❌ Vault Rejected Block: $RESPONSE"
-            echo "Attempting emergency sync..."
-            curl -s "$VAULT_URL/blocks" > chain_local.json
         fi
+
+        # Clean up the pending block so we don't double-submit
+        rm -f pending_block.json
 
         echo -e "\n♻️  Cooling down (2s)..."
         sleep 2
     else
-        echo "🚨 Mining failed. Check your wallet.json and connection."
-        break
+        echo "🚨 Mining failed to produce a block. Check your connection."
+        # Wait a bit before retrying to prevent a crash loop
+        sleep 5
     fi
 done

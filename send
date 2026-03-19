@@ -1,0 +1,23 @@
+#!/bin/bash
+
+if [ -z "$1" ] || [ -z "$2" ]; then
+  echo "Usage: ./send <recipient_address> <amount>"
+  exit 1
+fi
+
+# 1. Safety check: Delete any leftover transaction files
+rm -f pending_block.json
+
+echo "📦 Forging transaction..."
+node mark.js transfer "$1" "$2"
+
+# 2. Safety check: Did mark.js actually create a new block?
+if [ ! -f pending_block.json ]; then
+  echo "❌ Error: Transaction forging failed. Aborting broadcast."
+  exit 1
+fi
+
+echo "🚀 Broadcasting to ATK-Mint Network..."
+curl -s -X POST -H "Content-Type: application/json" -d @pending_block.json https://atk-mint-vault.duckdns.org/submit
+
+echo -e "\n✅ Transfer script finished."

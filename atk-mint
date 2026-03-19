@@ -1,0 +1,51 @@
+#!/bin/bash
+
+COMMAND=$1
+ARG1=$2
+ARG2=$3
+
+# The absolute path to your source code
+PROJECT_DIR="/Users/kevindavies/Development/AI/atk-mint"
+
+case $COMMAND in
+  send)
+    # Check if we have the required arguments for a transfer
+    if [ -z "$ARG1" ] || [ -z "$ARG2" ]; then
+      echo "Usage: atk-mint send <recipient_address> <amount>"
+      exit 1
+    fi
+    
+    # Navigate to the dir to ensure wallet.json and pending_block.json are handled correctly
+    cd $PROJECT_DIR
+    
+    echo "📦 Forging transaction..."
+    node mark.js transfer "$ARG1" "$ARG2"
+    
+    if [ ! -f pending_block.json ]; then
+      echo "❌ Error: Transaction forging failed. Aborting broadcast."
+      exit 1
+    fi
+
+    echo "🚀 Broadcasting to ATK-Mint Network..."
+    curl -s -X POST -H "Content-Type: application/json" -d @pending_block.json https://atk-mint-vault.duckdns.org/submit
+    echo -e "\n✅ Transfer script finished."
+    ;;
+
+  balance)
+    node $PROJECT_DIR/mark.js balance
+    ;;
+
+  address)
+    node $PROJECT_DIR/mark.js address
+    ;;
+
+  mint)
+    node $PROJECT_DIR/mark.js commit
+    ;;
+
+  *)
+    echo "Usage: atk-mint [send|balance|address|mint]"
+    echo "Example: atk-mint send <address> 1000"
+    exit 1
+    ;;
+esac

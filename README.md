@@ -13,111 +13,82 @@ Autarky is a highly secure, utility-focused Layer-1 blockchain built for the clo
 ## ⚠️ Beta Software & Liability Disclaimer
 
 **ATK-MINT IS EXPERIMENTAL BETA SOFTWARE.**
-By cloning, compiling, running, or transacting on this network, you explicitly acknowledge that this is an experimental peer-to-peer system. You accept all risks associated with its use, including but not limited to the potential loss of funds, loss of data, or network failures. The creators and contributors hold **zero liability**.
-
-**Do not use this software for high-value financial transactions.**
+By cloning, compiling, running, or transacting on this network, you explicitly acknowledge that this is an experimental peer-to-peer system. The creators and contributors hold **zero liability**. **Do not use this software for high-value financial transactions.**
 
 -----
 
-## ✨ Core Architecture: The Autarky Advantage
+## 🚀 Quick Start: Install the Global CLI
 
-ATK-Mint discards the legacy "monolithic node" design in favor of strict physical and logical decoupling:
+ATK-Mint features a unified Command Line Interface (CLI) that allows you to manage your wallet and mine from any directory on your system.
 
-  * **The Brain & The Muscle:** Network communication and state logic are handled by a lightweight, sandboxed JavaScript Control Layer (`mark.js`). Raw Proof-of-Work hashing is delegated to an OS-native, air-gapped Sovereign Engine (`atk`).
-  * **The Identity Firewall:** Node identity (`autarky.key`) is separated from financial wealth (`wallet.json`). You can deploy thousands of cloud mining nodes; even if a server is completely compromised, the attacker only gains a disconnected hashing calculator, while your ₳ wealth remains mathematically untouchable.
-  * **The Gravity Shield:** The network features a Dynamic Difficulty Engine that continuously adjusts the hashing target based on global computational power to maintain a steady block cadence.
-  * **Hybrid-to-Hydra Topology:** In its current Compliance Phase, state is arbitrated by a highly secure Vault via HTTPS/DuckDNS, paving the way for the Phase 2 transition to "Hydra"—a fully decentralized WebSocket gossip protocol.
-
------
-
-## 🚀 Quick Start (For Users & Investors)
-
-You do not need to run a computationally heavy server to participate in the economy. The Control Layer acts as a secure, lightweight client.
-
-### 1\. Clone & Setup
-
+### 1. Clone & Dependencies
 ```bash
 git clone https://github.com/kevindaviesnz/atk-mint.git
 cd atk-mint
 npm install
 ```
 
-### 2\. Generate Your Financial Wallet
-
-Initialize your local environment to create your `wallet.json` file. This is your "Bank Account" where your ₳ balances are stored. **Keep this file secure and never upload it to a cloud server.**
-
+### 2. Global Installation
+Link the `atk-mint` command to your system path:
 ```bash
-node mark.js init --accept-risks
+chmod +x miner.sh
+sudo cp atk-mint /usr/local/bin/atk-mint
+sudo chmod +x /usr/local/bin/atk-mint
 ```
 
-### 3\. Check Your Balance
-
+### 3. Initialize Your Wallet
+Create your local `wallet.json`. This is your "Bank Account." **Keep this file secure and never upload it to a cloud server.**
 ```bash
-node mark.js balance
-```
-
-### 4\. Transact on the Network
-
-Send ₳ to another public key. The Control Layer will sign the transaction locally and securely broadcast it to the global ledger.
-
-```bash
-node mark.js transfer <RECIPIENT_PUBLIC_KEY> <AMOUNT>
+atk-mint init
 ```
 
 -----
 
-## 🖥️ Run a Sovereign Node (For Miners)
+## 🕹️ Command Reference
 
-Want to secure the network and earn the **₳ 500** block reward? You can deploy a Sovereign Engine on any Mac or Linux machine.
+Once installed, use the following commands from any terminal window:
 
-### 1\. Initialize the Air-Gapped Environment
+| Command | Action |
+| :--- | :--- |
+| `atk-mint balance` | Query the Vault for your confirmed **₳** balance. |
+| `atk-mint address` | Display your Public Key (Your receiving address). |
+| `atk-mint send <ADDR> <AMT>` | Securely sign, mine, and broadcast a transfer. |
+| `atk-mint mine` | Launch the continuous Proof-of-Work mining rig. |
 
-Run the setup script. This will automatically detect your OS, promote the correct native binary (`atk-linux` or `atk-mac`) into the active `bin/` directory, and generate your node's unique `autarky.key` (Work ID).
+-----
 
+## 🖥️ Sovereign Node Operations (Mining)
+
+Secure the network and earn the **₳ 500** block reward by running a Sovereign Engine.
+
+### Start Mining
+Launch the rig with a custom identifier for the global leaderboard:
 ```bash
-./setup.sh
+atk-mint mine "My Mac Pro Rig"
 ```
 
-### 2\. Start the Mining Rig
-
-Once initialized, launch your miner. The engine will begin grinding hashes to discover a valid block nonce.
-
+### Background Mining
+To keep the engine running in the background while you work:
 ```bash
-./miner.sh "My Sovereign Node"
+atk-mint mine "Background-Worker" > mining.log 2>&1 &
 ```
-
-*Note: For Phase 1, ensure your node can reach the Vault on **Port 3000 (HTTP API)**. Phase 2 (Hydra) will utilize **Port 6000 (P2P)**.*
+*To stop the background process, use `pkill -f miner.sh`.*
 
 -----
 
 ## ⚡ The Hacker’s Challenge: Security by Architecture
 
-ATK-Mint is built on a provocative claim: **We feature the world’s most secure node architecture.** While the network's aggregate hash rate is in its infancy, the *structural integrity* of the Autarky Protocol is designed to be mathematically and logically superior to monolithic legacy clients.
+ATK-Mint is built on a provocative claim: **We feature the world’s most secure node architecture.** * **The Identity Firewall:** Node identity is separated from financial wealth. You can deploy thousands of cloud mining nodes; even if a server is completely compromised, the attacker only gains a disconnected hashing calculator, while your **₳** wealth remains mathematically untouchable.
+* **The Gravity Shield:** Features a Dynamic Difficulty Engine that adjusts the hashing target based on global computational power to maintain a steady block cadence.
 
-### 🛡️ The "Identity Firewall" Gauntlet
-
-We invite security researchers, white-hats, and adversarial actors to test the **Identity Firewall**. In a standard cryptocurrency node, root access to a mining server equals total loss of funds. **In ATK-Mint, we believe this is impossible.**
-
-  * **The Challenge:** Breach a live ATK-Mint Sovereign Node and extract the private financial keys (`wallet.json`) from the isolated Sovereign Engine (`atk`).
-  * **The Reality:** Because the Engine is air-gapped from the network stack and logically bifurcated from the Control Layer, a total server compromise grants the attacker a "disconnected calculator," not a "bank vault."
-
-### 🧪 Why we want you to break this
-
-ATK-Mint is currently in a "Value-Zero" testing phase. If you manage to find a flaw in our architectural separation, you aren't stealing life savings—you are performing a high-velocity audit that makes the protocol stronger. Help us prove that the "Brain and Muscle" bifurcation is the future of decentralized security.
-
------
+---
 
 ## 📊 The Web3 Explorer
 
-Autarky features a native, browser-based Analytics Dashboard that reads directly from the blockchain state to display the global rich list, circulating supply, and a live block feed.
-
-It runs entirely client-side and can be accessed securely here:
+View the global rich list, circulating supply, and live block feed:
 👉 **[Autarky Global Dashboard](https://kevindaviesnz.github.io/atk-mint/explorer.html)**
 
------
+---
 
 ## 📜 License
-
 MIT License. See `LICENSE` for details.
-
-
