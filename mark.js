@@ -6,6 +6,26 @@ require('dotenv').config({ quiet: true });
 const VAULT_URL = "https://atk-mint-vault.duckdns.org";
 const WALLET_FILE = path.join(__dirname, 'wallet.json');
 
+
+// --- ADD THIS FUNCTION ---
+function initWallet() {
+    if (fs.existsSync(WALLET_FILE)) {
+        console.log("ℹ️  wallet.json already exists. Skipping generation.");
+        return;
+    }
+    const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', {
+        namedCurve: 'secp256k1',
+        publicKeyEncoding: { type: 'spki', format: 'der' },
+        privateKeyEncoding: { type: 'pkcs8', format: 'der' }
+    });
+    const wallet = {
+        privateKey: privateKey.toString('hex'),
+        publicKey: publicKey.toString('hex')
+    };
+    fs.writeFileSync(WALLET_FILE, JSON.stringify(wallet, null, 2));
+    console.log("✅ New identity generated and saved to wallet.json");
+}
+
 function buildCanonicalString(b) {
     return [
         String(b.signer_pubkey || ""), 
@@ -113,7 +133,11 @@ const command = (process.argv[2] || "").trim();
 const message = process.argv[3] || "ATK-Mint Cloud Block";
 
 switch (command) {
+    case 'init':
+        initWallet(); // This calls the function that creates wallet.json
+        break;
     case 'commit':
+    case 'mine':
         mineCommit(message);
         break;
     case 'balance':
@@ -123,5 +147,5 @@ switch (command) {
         showAddress();
         break;
     default:
-        console.log(`❌ Invalid mark.js command: '${command}'. Use balance, address, or commit.`);
+        console.log(`❌ Invalid mark.js command: '${command}'. Use init, balance, address, or commit.`);
 }

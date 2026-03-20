@@ -1,39 +1,34 @@
 #!/bin/bash
 
-# --- Path Logic ---
-# On your Mac, we want this to point to your Dev folder.
-# Inside Docker, we want it to point to /app.
-if [ -d "/app" ]; then
-    PROJECT_DIR="/app"
-else
-    PROJECT_DIR="/Users/kevindavies/Development/AI/atk-mint"
+# 1. Identify where mark.js lives
+DIR="$(cd "$(dirname "${BASH_SOURCE}")" && pwd)"
+if [ ! -f "$DIR/mark.js" ]; then
+    DIR="."
 fi
 
-# Change to the project directory so Node can find wallet.json
-cd "$PROJECT_DIR" || { echo "❌ Directory not found at $PROJECT_DIR"; exit 1; }
+COMMAND=$1
+ARG2=$2
 
-case "$1" in
-  balance)
-    node mark.js balance
-    ;;
-  address)
-    node mark.js address
-    ;;
-  send)
-    if [ -z "$2" ] || [ -z "$3" ]; then
-      echo "Usage: atk-mint send <address> <amount>"
-    else
-      # Calling the 'send' script wrapper
-      ./send "$2" "$3"
-    fi
-    ;;
-  mine)
-    # Starts your universal miner.sh loop
-    ./miner.sh "${2:-"Kevins-Rig"}"
-    ;;
-  *)
-    echo "Usage: atk-mint {balance|address|send|mine}"
-    echo "Example: atk-mint send <address> 1000"
-    exit 1
-    ;;
-esac
+# 2. THE ROUTER LOGIC
+if [ "$COMMAND" == "mine" ]; then
+    # ONLY enter the continuous loop if the user specifically typed 'mine'
+    MESSAGE=${ARG2:-"Kevins-Rig"}
+    echo "========================================="
+    echo "⛏️  ATK-Mint CONTINUOUS CLOUD RIG"
+    echo "💬 Message: $MESSAGE"
+    echo "🌐 Vault: https://atk-mint-vault.duckdns.org"
+    echo "========================================="
+    
+    while true; do
+        echo "⚒️  Starting mining attempt..."
+        node "$DIR/mark.js" commit "$MESSAGE"
+        echo ""
+        echo "♻️  Cooling down (2s)..."
+        sleep 2
+    done
+
+else
+    # For EVERY OTHER command (init, balance, address, etc.)
+    # Just pass the arguments directly to Node and exit.
+    node "$DIR/mark.js" "$@"
+fi
