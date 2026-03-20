@@ -110,7 +110,7 @@
             try {
                 const res = await fetch(`${SERVER_URL}/balance/${address}`);
                 const data = await res.json();
-                const bal = isNaN(data.balance) ? 0 : data.balance;
+                const bal = isNaN(data.balance) || data.balance === null ? 0 : data.balance;
                 document.getElementById('balance-result').innerHTML = `<span class="currency-symbol text-lg">₳</span>${formatNumber(bal)} ATK`;
                 document.getElementById('balance-result-container').classList.remove('hidden');
             } catch (e) { console.error(e); }
@@ -121,23 +121,29 @@
             let totalSupply = 0;
 
             blocks.forEach(block => {
-                const address = block.signer_pubkey || block.miner;
+                const address = (block.signer_pubkey || "").trim();
+                if (!address) return;
+
                 if (block.type === 'GENESIS' || block.type === 'MINT') {
-                    let amount = 500;
+                    let amount = 0;
                     if (block.vm_result) {
-                        const match = block.vm_result.match(/Int\((-?\d+)\)/);
-                        if (match && !isNaN(Number(match))) amount = Number(match);
-                    } else if (block.amount !== undefined && !isNaN(Number(block.amount))) {
-                        amount = Number(block.amount);
+                        // Regex to grab the raw number inside Int(...)
+                        const match = String(block.vm_result).match(/Int\(([^)]+)\)/);
+                        if (match) amount = Number(match);
                     }
+                    
+                    // Fallback for standard minting if parsing fails
+                    if (amount === 0 && block.type === 'MINT') amount = 500;
+
                     balances[address] = (balances[address] || 0) + amount;
                     totalSupply += amount;
                 }
                 if (block.type === 'TRANSFER') {
                     const amount = Number(block.amount);
+                    const recipient = (block.recipient || "").trim();
                     if (!isNaN(amount)) {
-                        balances[block.signer_pubkey] = (balances[block.signer_pubkey] || 0) - amount;
-                        balances[block.recipient] = (balances[block.recipient] || 0) + amount;
+                        balances[address] = (balances[address] || 0) - amount;
+                        balances[recipient] = (balances[recipient] || 0) + amount;
                     }
                 }
             });
@@ -145,8 +151,8 @@
             document.getElementById('ui-supply').innerHTML = `<span class="currency-symbol">₳</span>${formatNumber(totalSupply)} <span class="text-lg text-autarky">ATK</span>`;
 
             const richListHtml = Object.entries(balances)
-                .filter(([addr, bal]) => bal > 0 && !isNaN(bal))
-                .sort((a, b) => b - a)
+                .filter(([addr, bal]) => bal > 0)
+                .sort((a, b) => b - a) // Proper numeric sort for BigInt-like numbers
                 .slice(0, 5)
                 .map(([addr, bal], index) => `
                     <div class="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700">
@@ -195,7 +201,9 @@
                     let detailsHtml = '';
                     if (isTransfer) {
                         detailsHtml = `<p class="mt-3 text-right text-white"><span class="currency-symbol">₳</span>${formatNumber(block.amount)} ATK</p>`;
-                    } else if (!isGenesis) {
+                    } else if (isGenesis) {
+                        detailsHtml = `<p class="mt-3 text-xs text-slate-400 italic font-mono">The Big Bang: 100B Minted</p>`;
+                    } else {
                         detailsHtml = `<p class="mt-3 text-xs text-emerald-400 font-mono">${truncate(address, 12)}</p>`;
                     }
 
@@ -211,7 +219,7 @@
                     `;
                 });
                 feed.innerHTML = feedHtml;
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error("Network sync failed..."); }
         }
 
         fetchNetworkData();
