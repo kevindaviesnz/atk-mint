@@ -29,7 +29,8 @@ wallet_old.json      # Legacy backup protection
 # 📜 LOCAL BLOCKCHAIN LEDGERS & STATE
 # These are large data files that should be synced via API, not Git.
 chain.json
-chain_*.json         # Protects chain_local.json
+chain*.json         # Protects chain_local.json
+
 state.json
 state.json.example
 
@@ -37,7 +38,6 @@ state.json.example
 autarky_compiler/target/
 pending_block.json
 pending_*.json       # Protects temporary mining files
-chain_local.json
 
 # Trash files
 *.old
