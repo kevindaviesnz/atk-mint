@@ -48,9 +48,7 @@
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
             <div class="space-y-8">
-                
                 <div class="bg-panel rounded-xl p-6 shadow-lg border border-slate-700">
                     <h2 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Circulating Supply</h2>
                     <p class="text-3xl font-extrabold text-white" id="ui-supply">
@@ -92,7 +90,6 @@
                     <p class="text-slate-500 italic">Syncing with secure network...</p>
                 </div>
             </div>
-
         </div>
     </div>
 
@@ -113,10 +110,10 @@
             try {
                 const res = await fetch(`${SERVER_URL}/balance/${address}`);
                 const data = await res.json();
-                const bal = isNaN(data.balance) ? 0 : data.balance; // Safe fallback
+                const bal = isNaN(data.balance) ? 0 : data.balance;
                 document.getElementById('balance-result').innerHTML = `<span class="currency-symbol text-lg">₳</span>${formatNumber(bal)} ATK`;
                 document.getElementById('balance-result-container').classList.remove('hidden');
-            } catch (e) { alert("Could not reach the network."); }
+            } catch (e) { console.error(e); }
         }
 
         function calculateAnalytics(blocks) {
@@ -125,22 +122,17 @@
 
             blocks.forEach(block => {
                 const address = block.signer_pubkey || block.miner;
-
                 if (block.type === 'GENESIS' || block.type === 'MINT') {
-                    let amount = 500; // Default block reward
-                    
-                    // Attempt to parse amount safely
+                    let amount = 500;
                     if (block.vm_result) {
                         const match = block.vm_result.match(/Int\((-?\d+)\)/);
                         if (match && !isNaN(Number(match))) amount = Number(match);
                     } else if (block.amount !== undefined && !isNaN(Number(block.amount))) {
                         amount = Number(block.amount);
                     }
-
                     balances[address] = (balances[address] || 0) + amount;
                     totalSupply += amount;
                 }
-
                 if (block.type === 'TRANSFER') {
                     const amount = Number(block.amount);
                     if (!isNaN(amount)) {
@@ -153,43 +145,39 @@
             document.getElementById('ui-supply').innerHTML = `<span class="currency-symbol">₳</span>${formatNumber(totalSupply)} <span class="text-lg text-autarky">ATK</span>`;
 
             const richListHtml = Object.entries(balances)
-                .filter(([address, bal]) => bal > 0 && !isNaN(bal)) // Filter zeroes and NaNs
+                .filter(([addr, bal]) => bal > 0 && !isNaN(bal))
                 .sort((a, b) => b - a)
                 .slice(0, 5)
-                .map(([address, bal], index) => `
+                .map(([addr, bal], index) => `
                     <div class="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700">
                         <div class="flex items-center gap-3">
                             <span class="text-slate-500 font-bold">#${index + 1}</span>
-                            <span class="font-mono text-xs text-autarky" title="${address}">${truncate(address, 8)}</span>
+                            <span class="font-mono text-xs text-autarky" title="${addr}">${truncate(addr, 8)}</span>
                         </div>
                         <span class="font-bold text-white text-sm"><span class="currency-symbol text-xs">₳</span>${formatNumber(bal)} ATK</span>
                     </div>
                 `).join('');
-            
             document.getElementById('rich-list').innerHTML = richListHtml || '<p class="text-sm text-slate-500">No data.</p>';
         }
 
         async function fetchNetworkData() {
             try {
                 const diffRes = await fetch(`${SERVER_URL}/difficulty`);
-                document.getElementById('ui-difficulty').innerText = (await diffRes.json()).difficulty || "--";
+                const diffData = await diffRes.json();
+                document.getElementById('ui-difficulty').innerText = diffData.difficulty || "--";
 
                 const blockRes = await fetch(`${SERVER_URL}/blocks`);
                 const rawData = await blockRes.json();
                 
                 let blocksArray = [];
                 if (Array.isArray(rawData)) blocksArray = rawData;
-                else if (rawData && Array.isArray(rawData.chain)) blocksArray = rawData.chain;
                 else if (rawData && Array.isArray(rawData.blocks)) blocksArray = rawData.blocks;
+                else if (rawData && Array.isArray(rawData.chain)) blocksArray = rawData.chain;
                 else return;
 
                 document.getElementById('ui-height').innerText = blocksArray.length > 0 ? blocksArray.length - 1 : 0;
 
-                // THE FIX: Embed chronological height before reversing
-                blocksArray.forEach((block, index) => {
-                    block.trueHeight = index;
-                });
-
+                blocksArray.forEach((block, index) => { block.trueHeight = index; });
                 calculateAnalytics(blocksArray);
 
                 const feed = document.getElementById('block-feed');
@@ -205,8 +193,29 @@
                     
                     const address = block.signer_pubkey || block.miner;
                     let detailsHtml = '';
-
                     if (isTransfer) {
-                        detailsHtml = `
-                            <div class="flex justify-between items-center mt-3 bg-slate-900/50 p-3 rounded-lg">
-                                <div><p class="text-
+                        detailsHtml = `<p class="mt-3 text-right text-white"><span class="currency-symbol">₳</span>${formatNumber(block.amount)} ATK</p>`;
+                    } else if (!isGenesis) {
+                        detailsHtml = `<p class="mt-3 text-xs text-emerald-400 font-mono">${truncate(address, 12)}</p>`;
+                    }
+
+                    feedHtml += `
+                        <div class="bg-panel p-5 rounded-xl border border-slate-700 shadow-sm">
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="text-lg font-bold">Block #${block.trueHeight}</h3>
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded border uppercase ${badgeColor}">${block.type}</span>
+                            </div>
+                            <p class="text-xs text-slate-500 font-mono">${truncate(block.hash, 20)}</p>
+                            ${detailsHtml}
+                        </div>
+                    `;
+                });
+                feed.innerHTML = feedHtml;
+            } catch (e) { console.error(e); }
+        }
+
+        fetchNetworkData();
+        setInterval(fetchNetworkData, 5000);
+    </script>
+</body>
+</html>
