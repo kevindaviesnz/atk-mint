@@ -1,162 +1,113 @@
 const fs = require('fs');
 const crypto = require('crypto');
+const path = require('path');
+require('dotenv').config();
 
-// --- Network Configuration ---
+// --- CONFIGURATION ---
 const VAULT_URL = "https://atk-mint-vault.duckdns.org";
-const DIFFICULTY = 6;
+const WALLET_FILE = path.join(__dirname, 'wallet.json');
 
-const command = process.argv[2];
-
-// Helper function to safely read both old (camelCase) and new (snake_case) wallet formats
-function getWalletKeys(wallet) {
-    return {
-        pubKey: wallet.public_key || wallet.publicKey,
-        privKey: wallet.private_key || wallet.privateKey
-    };
+/**
+ * THE CRITICAL SYNC: This string must match server.js exactly.
+ * Order: Pubkey | Nonce | MiningNonce | Recipient | Amount | Type | VM | Mark | Message | Payload | Sig | CompPub | PrevHash
+ */
+function buildCanonicalString(b) {
+    return [
+        String(b.signer_pubkey || ""), 
+        String(b.nonce ?? "0"), 
+        String(b.mining_nonce ?? "0"),
+        String(b.recipient || ""), 
+        String(b.amount || ""), 
+        String(b.type || ""),
+        String(b.vm_result || ""), 
+        String(b.mark_commit ?? "false"),
+        String(b.message || ""),             // Position 9
+        String(b.compiler_payload_raw || ""), 
+        String(b.compiler_signature || ""),
+        String(b.compiler_pubkey || ""), 
+        String(b.previousHash || "0")         // Position 13
+    ].join('|');
 }
 
-if (command === 'init') {
-    console.log("Generating new Ed25519 keypair...");
-    const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
-    
-    const wallet = {
-        public_key: publicKey.export({ type: 'spki', format: 'der' }).toString('hex'),
-        private_key: privateKey.export({ type: 'pkcs8', format: 'der' }).toString('hex')
-    };
-    
-    fs.writeFileSync('wallet.json', JSON.stringify(wallet, null, 2));
-    console.log("✅ New wallet created and saved to wallet.json");
-    console.log(`Address: ${wallet.public_key}`);
-
-} else if (command === 'address') {
-    if (!fs.existsSync('wallet.json')) return console.log("❌ Error: wallet.json not found.");
-    const wallet = JSON.parse(fs.readFileSync('wallet.json', 'utf8'));
-    const { pubKey } = getWalletKeys(wallet);
-    console.log(`Wallet Address: ${pubKey}`);
-
-} else if (command === 'balance') {
-    if (!fs.existsSync('wallet.json')) return console.log("❌ Error: wallet.json not found.");
-    const wallet = JSON.parse(fs.readFileSync('wallet.json', 'utf8'));
-    const { pubKey } = getWalletKeys(wallet);
-    
-    console.log(`\nWallet Address: ${pubKey}`);
-    fetch(`${VAULT_URL}/balance/${pubKey}`)
-        .then(res => res.json())
-        .then(data => console.log(`Confirmed Balance: ₳ ${data.balance.toLocaleString()} ATK\n`))
-        .catch(err => console.log("❌ Error fetching balance from Vault."));
-
-} else if (command === 'commit') {
-    if (!fs.existsSync('wallet.json')) return console.log("❌ Error: wallet.json not found.");
-    const wallet = JSON.parse(fs.readFileSync('wallet.json', 'utf8'));
-    const { pubKey, privKey } = getWalletKeys(wallet);
-
-    (async () => {
-        try {
-            console.log("📡 Syncing state with Vault...");
-            const stateRes = await fetch(`${VAULT_URL}/nonce/${pubKey}`);
-            const state = await stateRes.json();
-
-            const block = {
-                signer_pubkey: pubKey,
-                nonce: state.nonce,
-                type: "MINT",
-                previousHash: state.previousHash,
-                timestamp: Date.now()
-            };
-
-            console.log(`⛏️  Mining MINT block (Difficulty: ${DIFFICULTY})...`);
-            let mining_nonce = 0;
-            let hash = "";
-            const target = '0'.repeat(DIFFICULTY);
-
-            while (true) {
-                const data = `${block.signer_pubkey}${block.nonce}${block.type}${block.previousHash}${mining_nonce}`;
-                hash = crypto.createHash('sha256').update(data).digest('hex');
-                if (hash.startsWith(target)) break;
-                mining_nonce++;
-            }
-            block.mining_nonce = mining_nonce;
-            block.hash = hash;
-
-            const canonical = [
-                block.signer_pubkey, block.nonce, block.mining_nonce,
-                "", "", block.type,
-                "", "", "", "", "", block.previousHash
-            ].join('|');
-
-            const privateKeyObj = crypto.createPrivateKey({ key: Buffer.from(privKey, 'hex'), format: 'der', type: 'pkcs8' });
-            block.signature = crypto.sign(null, Buffer.from(canonical), privateKeyObj).toString('hex');
-
-            fs.writeFileSync('pending_block.json', JSON.stringify(block, null, 2));
-            console.log("✅ MINT block forged and saved as pending_block.json");
-        } catch (e) {
-            console.log("❌ CRASH DETAILS:", e);
-        }
-    })();
-
-} else if (command === 'transfer') {
-    const recipient = process.argv[3];
-    const amount = process.argv[4];
-    
-    if (!recipient || !amount) {
-        console.log("Usage: node mark.js transfer <recipient> <amount>");
+/**
+ * Fetches the current network state from the Cloud Vault.
+ */
+async function getNetworkState(pubkey) {
+    try {
+        console.log("📡 Syncing state with Vault...");
+        const response = await fetch(`${VAULT_URL}/nonce/${pubkey}`);
+        if (!response.ok) throw new Error("Vault unreachable");
+        return await response.json();
+    } catch (e) {
+        console.error("❌ Network Sync Failed:", e.message);
         process.exit(1);
     }
-
-    if (!fs.existsSync('wallet.json')) {
-        console.log("❌ Error: wallet.json not found.");
-        process.exit(1);
-    }
-    
-    const wallet = JSON.parse(fs.readFileSync('wallet.json', 'utf8'));
-    const { pubKey, privKey } = getWalletKeys(wallet);
-
-    (async () => {
-        try {
-            console.log("📡 Syncing state with Vault...");
-            const stateRes = await fetch(`${VAULT_URL}/nonce/${pubKey}`);
-            const state = await stateRes.json();
-
-            const block = {
-                signer_pubkey: pubKey,
-                nonce: state.nonce,
-                type: "TRANSFER",
-                recipient: recipient,
-                amount: parseFloat(amount),
-                previousHash: state.previousHash,
-                timestamp: Date.now()
-            };
-
-            console.log(`⛏️  Mining TRANSFER block (Difficulty: ${DIFFICULTY})...`);
-            let mining_nonce = 0;
-            let hash = "";
-            const target = '0'.repeat(DIFFICULTY);
-
-            while (true) {
-                const data = `${block.signer_pubkey}${block.nonce}${block.type}${block.recipient}${block.amount}${block.previousHash}${mining_nonce}`;
-                hash = crypto.createHash('sha256').update(data).digest('hex');
-                if (hash.startsWith(target)) break;
-                mining_nonce++;
-            }
-            block.mining_nonce = mining_nonce;
-            block.hash = hash;
-
-            const canonical = [
-                block.signer_pubkey, block.nonce, block.mining_nonce,
-                block.recipient || "", block.amount || "", block.type || "",
-                "", "", "", "", "", block.previousHash
-            ].join('|');
-
-            const privateKeyObj = crypto.createPrivateKey({ key: Buffer.from(privKey, 'hex'), format: 'der', type: 'pkcs8' });
-            block.signature = crypto.sign(null, Buffer.from(canonical), privateKeyObj).toString('hex');
-
-            fs.writeFileSync('pending_block.json', JSON.stringify(block, null, 2));
-            console.log("✅ TRANSFER block forged and saved as pending_block.json");
-        } catch (e) {
-            console.log("❌ CRASH DETAILS:", e);
-        }
-    })();
-
-} else {
-    console.log("Usage: node mark.js [init|address|balance|commit|transfer]");
 }
+
+/**
+ * Proof of Work: Finds a hash starting with 000000.
+ */
+function mineBlock(block) {
+    let hash = "";
+    console.log(`⛏️  Mining MINT block (Difficulty: 6)...`);
+    
+    while (!hash.startsWith('000000')) {
+        block.mining_nonce++;
+        const dataStr = buildCanonicalString(block);
+        hash = crypto.createHash('sha256').update(dataStr).digest('hex');
+    }
+    
+    block.hash = hash;
+    return block;
+}
+
+/**
+ * Main Mining Execution
+ */
+async function main() {
+    const message = process.argv || "ATK-Mint Cloud Block";
+
+    if (!fs.existsSync(WALLET_FILE)) {
+        console.log("❌ wallet.json not found.");
+        return;
+    }
+
+    const wallet = JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8'));
+    const state = await getNetworkState(wallet.publicKey);
+
+    // Construct the Block Template
+    let block = {
+        signer_pubkey: wallet.publicKey,
+        nonce: state.nonce,
+        mining_nonce: 0,
+        recipient: "",
+        amount: 0,
+        type: "MINT",
+        vm_result: "Int(500)", // Standard Mint Reward
+        mark_commit: "false",
+        message: message,
+        previousHash: state.previousHash,
+        timestamp: Date.now()
+    };
+
+    // 1. Solve the PoW Puzzle
+    const minedBlock = mineBlock(block);
+
+    // 2. Sign the Result (Using internal Node crypto)
+    // Note: This assumes your wallet.json contains the privateKey 
+    // If encrypted, you would add decryption logic here.
+    const dataToSign = buildCanonicalString(minedBlock);
+    const privateKey = crypto.createPrivateKey({
+        key: Buffer.from(wallet.privateKey, 'hex'),
+        format: 'der',
+        type: 'pkcs8'
+    });
+
+    minedBlock.signature = crypto.sign(null, Buffer.from(dataToSign), privateKey).toString('hex');
+
+    // 3. Save for the miner.sh to transmit
+    fs.writeFileSync('pending_block.json', JSON.stringify(minedBlock, null, 2));
+    console.log(`✅ MINT block forged and saved as pending_block.json`);
+}
+
+main();
