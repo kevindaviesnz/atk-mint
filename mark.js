@@ -128,17 +128,55 @@ function showAddress() {
     console.log(`\n🔑 Your Public Key:\n${wallet.publicKey}\n`);
 }
 
+async function transferATK(recipient, amount) {
+    console.log(recipient)
+    if (!fs.existsSync(WALLET_FILE)) return console.log("❌ wallet.json not found.");
+    const wallet = JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8'));
+    const state = await getNetworkState(wallet.publicKey);
+
+    const block = {
+        signer_pubkey: wallet.publicKey,
+        nonce: state.nonce,
+        recipient: recipient.trim(),
+        amount: amount.toString(),
+        type: "TRANSFER",
+        previousHash: state.previousHash,
+        timestamp: Date.now()
+    };
+
+    const dataToSign = buildCanonicalString(block);
+    const privateKey = crypto.createPrivateKey({
+        key: Buffer.from(wallet.privateKey, 'hex'),
+        format: 'der',
+        type: 'pkcs8'
+    });
+    block.signature = crypto.sign(null, Buffer.from(dataToSign), privateKey).toString('hex');
+    block.hash = crypto.createHash('sha256').update(dataToSign).digest('hex');
+
+    const response = await fetch(`${VAULT_URL}/blocks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(block)
+    });
+    const result = await response.json();
+    console.log(response.ok ? `✅ Sent! Block #${result.height}` : `❌ Failed: ${JSON.stringify(result)}`);
+}
+
 // --- CLI ROUTER ---
 const command = (process.argv[2] || "").trim();
 const message = process.argv[3] || "ATK-Mint Cloud Block";
 
 switch (command) {
     case 'init':
-        initWallet(); // This calls the function that creates wallet.json
+        initWallet();
+        break;
+    case 'send':
+    case 'transfer':
+        transferATK(process.argv[3], process.argv[4]);
         break;
     case 'commit':
     case 'mine':
-        mineCommit(message);
+        mineCommit(process.argv || "Cloud Block");
         break;
     case 'balance':
         checkBalance();
@@ -147,5 +185,5 @@ switch (command) {
         showAddress();
         break;
     default:
-        console.log(`❌ Invalid mark.js command: '${command}'. Use init, balance, address, or commit.`);
+        console.log(`❌ Invalid command: '${command}'. Use init, send, balance, or mine.`);
 }
