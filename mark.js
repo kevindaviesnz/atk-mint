@@ -129,7 +129,6 @@ function showAddress() {
 }
 
 async function transferATK(recipient, amount) {
-    console.log(recipient)
     if (!fs.existsSync(WALLET_FILE)) return console.log("❌ wallet.json not found.");
     const wallet = JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8'));
     const state = await getNetworkState(wallet.publicKey);
