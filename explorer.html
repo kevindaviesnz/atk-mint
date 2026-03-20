@@ -97,7 +97,12 @@
         const SERVER_URL = 'https://atk-mint-vault.duckdns.org';
 
         function formatTime(timestamp) { return new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}); }
-        function formatNumber(num) { return new Intl.NumberFormat('en-US').format(num); }
+        
+        // Formatter updated to handle String-based BigInt numbers
+        function formatNumber(numStr) { 
+            return new Intl.NumberFormat('en-US').format(numStr); 
+        }
+
         function truncate(str, chars = 8) { 
             if (!str) return 'N/A';
             if (str.length <= chars * 2) return str;
@@ -110,49 +115,53 @@
             try {
                 const res = await fetch(`${SERVER_URL}/balance/${address}`);
                 const data = await res.json();
-                const bal = isNaN(data.balance) || data.balance === null ? 0 : data.balance;
+                // Safe BigInt handling for single wallet lookup
+                const bal = (data.balance === null || data.balance === undefined) ? "0" : data.balance.toString();
                 document.getElementById('balance-result').innerHTML = `<span class="currency-symbol text-lg">₳</span>${formatNumber(bal)} ATK`;
                 document.getElementById('balance-result-container').classList.remove('hidden');
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error("Balance lookup failed."); }
         }
 
         function calculateAnalytics(blocks) {
             let balances = {};
-            let totalSupply = 0;
+            let totalSupply = BigInt(0);
 
             blocks.forEach(block => {
                 const address = (block.signer_pubkey || "").trim();
                 if (!address) return;
 
                 if (block.type === 'GENESIS' || block.type === 'MINT') {
-                    let amount = 0;
+                    let amount = BigInt(0);
                     if (block.vm_result) {
-                        // Regex to grab the raw number inside Int(...)
                         const match = String(block.vm_result).match(/Int\(([^)]+)\)/);
-                        if (match) amount = Number(match);
+                        if (match) {
+                            try {
+                                amount = BigInt(match);
+                            } catch(e) { amount = BigInt(500); }
+                        }
+                    } else if (block.type === 'MINT') {
+                        amount = BigInt(500);
                     }
-                    
-                    // Fallback for standard minting if parsing fails
-                    if (amount === 0 && block.type === 'MINT') amount = 500;
 
-                    balances[address] = (balances[address] || 0) + amount;
+                    balances[address] = (balances[address] || BigInt(0)) + amount;
                     totalSupply += amount;
                 }
+                
                 if (block.type === 'TRANSFER') {
-                    const amount = Number(block.amount);
+                    const amount = BigInt(block.amount || 0);
                     const recipient = (block.recipient || "").trim();
-                    if (!isNaN(amount)) {
-                        balances[address] = (balances[address] || 0) - amount;
-                        balances[recipient] = (balances[recipient] || 0) + amount;
-                    }
+                    balances[address] = (balances[address] || BigInt(0)) - amount;
+                    balances[recipient] = (balances[recipient] || BigInt(0)) + amount;
                 }
             });
 
-            document.getElementById('ui-supply').innerHTML = `<span class="currency-symbol">₳</span>${formatNumber(totalSupply)} <span class="text-lg text-autarky">ATK</span>`;
+            // Update UI with BigInt string
+            document.getElementById('ui-supply').innerHTML = `<span class="currency-symbol">₳</span>${formatNumber(totalSupply.toString())} <span class="text-lg text-autarky">ATK</span>`;
 
+            // Sort and Render the Rich List using BigInt comparisons
             const richListHtml = Object.entries(balances)
-                .filter(([addr, bal]) => bal > 0)
-                .sort((a, b) => b - a) // Proper numeric sort for BigInt-like numbers
+                .filter(([addr, bal]) => bal > BigInt(0))
+                .sort((a, b) => (b < a ? -1 : b > a ? 1 : 0)) 
                 .slice(0, 5)
                 .map(([addr, bal], index) => `
                     <div class="flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-slate-700">
@@ -160,7 +169,7 @@
                             <span class="text-slate-500 font-bold">#${index + 1}</span>
                             <span class="font-mono text-xs text-autarky" title="${addr}">${truncate(addr, 8)}</span>
                         </div>
-                        <span class="font-bold text-white text-sm"><span class="currency-symbol text-xs">₳</span>${formatNumber(bal)} ATK</span>
+                        <span class="font-bold text-white text-sm"><span class="currency-symbol text-xs">₳</span>${formatNumber(bal.toString())} ATK</span>
                     </div>
                 `).join('');
             document.getElementById('rich-list').innerHTML = richListHtml || '<p class="text-sm text-slate-500">No data.</p>';
@@ -200,7 +209,7 @@
                     const address = block.signer_pubkey || block.miner;
                     let detailsHtml = '';
                     if (isTransfer) {
-                        detailsHtml = `<p class="mt-3 text-right text-white"><span class="currency-symbol">₳</span>${formatNumber(block.amount)} ATK</p>`;
+                        detailsHtml = `<p class="mt-3 text-right text-white"><span class="currency-symbol">₳</span>${formatNumber(block.amount.toString())} ATK</p>`;
                     } else if (isGenesis) {
                         detailsHtml = `<p class="mt-3 text-xs text-slate-400 italic font-mono">The Big Bang: 100B Minted</p>`;
                     } else {
@@ -219,7 +228,7 @@
                     `;
                 });
                 feed.innerHTML = feedHtml;
-            } catch (e) { console.error("Network sync failed..."); }
+            } catch (e) { console.error("Network sync lost..."); }
         }
 
         fetchNetworkData();
