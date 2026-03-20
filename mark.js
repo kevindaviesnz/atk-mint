@@ -133,9 +133,11 @@ async function transferATK(recipient, amount) {
     const wallet = JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8'));
     const state = await getNetworkState(wallet.publicKey);
 
-    const block = {
+    // 1. Create the base block
+    let block = {
         signer_pubkey: wallet.publicKey,
         nonce: state.nonce,
+        mining_nonce: 0, // Reset for the new solve
         recipient: recipient.trim(),
         amount: amount.toString(),
         type: "TRANSFER",
@@ -143,22 +145,38 @@ async function transferATK(recipient, amount) {
         timestamp: Date.now()
     };
 
-    const dataToSign = buildCanonicalString(block);
+    // 2. 🔥 THE FIX: Mine the transaction to satisfy the Vault's Difficulty 6
+    console.log("⛏️  Mining Proof-of-Work for transaction...");
+    const minedBlock = mineBlock(block); 
+
+    // 3. Sign the fully mined block
+    const dataToSign = buildCanonicalString(minedBlock);
     const privateKey = crypto.createPrivateKey({
         key: Buffer.from(wallet.privateKey, 'hex'),
         format: 'der',
         type: 'pkcs8'
     });
-    block.signature = crypto.sign(null, Buffer.from(dataToSign), privateKey).toString('hex');
-    block.hash = crypto.createHash('sha256').update(dataToSign).digest('hex');
+    minedBlock.signature = crypto.sign(null, Buffer.from(dataToSign), privateKey).toString('hex');
 
-    const response = await fetch(`${VAULT_URL}/blocks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(block)
-    });
-    const result = await response.json();
-    console.log(response.ok ? `✅ Sent! Block #${result.height}` : `❌ Failed: ${JSON.stringify(result)}`);
+    // 4. Transmit the valid block
+    console.log(`🚀 Transmitting ₳ ${amount} to ${recipient.substring(0,10)}...`);
+    
+    try {
+        const response = await fetch(`${VAULT_URL}/blocks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(minedBlock)
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+            console.log(`✅ Sent! Block #${result.height} accepted by Vault.`);
+        } else {
+            console.log(`❌ Vault Rejected Transfer: ${JSON.stringify(result)}`);
+        }
+    } catch (e) {
+        console.log(`❌ Network Error: ${e.message}`);
+    }
 }
 
 // --- CLI ROUTER ---
