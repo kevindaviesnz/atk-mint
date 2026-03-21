@@ -8,7 +8,7 @@ The Autarky Protocol (ATK-MINT) was conceptualized to address the security vulne
 ## 1. Introduction
 Traditional Proof-of-Work (PoW) blockchains, such as Bitcoin and Ethereum (pre-Merge), rely on monolithic software clients. In these paradigms, peer-to-peer networking, state validation, transaction signing, and cryptographic hashing operate within a shared execution environment. This presents a critical security surface: a vulnerability in the network layer can expose the private keys stored in the same client.
 
-The Autarky Protocol (ATK-MINT) proposed a bifurcated "Brain and Muscle" architecture to mitigate this risk. By restricting state logic and financial keys to a lightweight Node.js runtime (`mark.js`) and delegating computationally intensive hashing to an isolated, OS-native binary written in the Autarky* programming language, the system sought to eliminate the risk of remote key extraction. This report critically reviews the efficacy of this architecture and the developmental friction encountered during its realization.
+The Autarky Protocol (ATK-MINT) proposed a bifurcated "Brain and Muscle" architecture to mitigate this risk. By restricting state logic and financial keys to a lightweight Node.js runtime (`mark.js`) and delegating computationally intensive hashing to an isolated, OS-native binary, the system sought to eliminate the risk of remote key extraction. This report critically reviews the efficacy of this architecture and the developmental friction encountered during its realization.
 
 ## 2. Implementation Successes (What Went Right)
 
