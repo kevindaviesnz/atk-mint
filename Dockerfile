@@ -1,8 +1,9 @@
-# --- STAGE 1: The Rust Builder ---
-# Use the latest Rust compiler on Debian Bookworm (v12) to support Edition 2024 and LLVM 15
+# =======================================================
+# STAGE 1: The Rust Builder (The Muscle)
+# =======================================================
 FROM rust:bookworm AS builder
 
-# 1. Install LLVM 15 and necessary C++ build tools
+# 1. Install LLVM 15 and necessary build tools
 RUN apt-get update && apt-get install -y \
     build-essential \
     llvm-15 \
@@ -12,33 +13,35 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Tell the Rust compiler exactly where LLVM 15 lives
+# 2. Set LLVM path for the compiler
 ENV LLVM_SYS_150_PREFIX=/usr/lib/llvm-15
 
 WORKDIR /usr/src/app
 
-# Copy the entire project into the builder
+# 3. Copy source code and build the release binary
 COPY . .
-
-# Navigate into your specific source folder and compile the Linux binary
 RUN cd bin/autarky-source && cargo build --release
 
-# --- STAGE 2: The Node.js Runtime ---
+# =======================================================
+# STAGE 2: The Node.js Runtime (The Brain)
+# =======================================================
 FROM node:20-bookworm-slim
-
-# Install dependencies needed for scripts and Windows line-ending fixes
-RUN apt-get update && apt-get install -y curl dos2unix && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy your Node scripts and shell scripts into the final image
-COPY miner.sh mark.js package*.json ./
+# 1. Copy package files and install dependencies (Fixes the dotenv bug)
+COPY package*.json ./
+RUN npm install --production
 
-# Extract ONLY the compiled binary from the builder stage
+# 2. Copy the Control Script
+COPY mark.js ./
+
+# 3. Extract the compiled Sovereign Engine from Stage 1
 COPY --from=builder /usr/src/app/bin/autarky-source/target/release/autarky ./atk
 
-# Fix line endings (critical for Windows users) and make everything executable
-RUN dos2unix miner.sh mark.js && chmod +x miner.sh mark.js ./atk
+# 4. Grant execution permissions to the engine
+RUN chmod +x ./atk
 
-# Start the continuous miner loop
-ENTRYPOINT ["./miner.sh"]
+# 5. Set the default command to start the continuous miner
+ENTRYPOINT ["node", "mark.js"]
+CMD ["mine", "Sovereign Cloud Node"]
