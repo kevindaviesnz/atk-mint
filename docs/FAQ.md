@@ -14,3 +14,5 @@ Difficulty 6 requires finding a SHA-256 hash with 6 leading zeros. This provides
 
 ### Where is my balance actually stored?
 Your balance is not stored in a database. It is dynamically calculated by reading the immutable `chain_3000.json` ledger from genesis to the latest block, calculating all `MINT` and `TRANSFER` operations mathematically.
+
+Authorship disclosure: This project was produced through a human-directed AI process under the oversight of Kevin Davies. The protocol architecture, source code, and technical design were developed in collaboration with Gemini Pro (Google DeepMind). The written documentation — including this whitepaper, the README, and supporting materials — was drafted using Claude (Anthropic). All AI-generated outputs were produced under the author's direct direction and reviewed prior to publication.

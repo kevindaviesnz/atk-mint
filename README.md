@@ -1,141 +1,226 @@
-# 🛡️ Autarky Network (ATK-MINT)
+# Autarky Network (ATK-Mint)
 
-## **"Sovereign Wealth through Decoupled Consensus"**
+**A Layer-1 Proof-of-Work blockchain with a hard-capped 100B supply, automated halving scarcity, and the first formally verified transaction pipeline in any public cryptocurrency network.**
 
-> **A Layer-1 Blockchain featuring a hard-capped 100B Supply and Automated Halving Scarcity.**
-
-Autarky is a utility-focused Layer-1 blockchain built for the cloud-computing era. By fundamentally decoupling cryptographic key management from intensive computational hashing, ATK-Mint allows operators to mine the native **₳** asset across unsecured global servers without ever exposing their financial treasury.
-
-**[🌐 View the Live Network Explorer](https://kevindaviesnz.github.io/atk-mint/explorer.html)** | **[📄 Read the Official Whitepaper](https://www.google.com/search?q=WHITEPAPER.md)**
+**[View the Live Network Explorer](https://kevindaviesnz.github.io/atk-mint/explorer.html)** | **[Read the Technical Whitepaper](docs/WHITEPAPER.md)**
 
 ---
 
-## 📊 Tokenomics & Monetary Policy
-
-ATK-Mint operates on a strictly defined mathematical emission schedule to ensure long-term value preservation.
-
-* **Total Max Supply:** 100,000,000,000 **₳** (100 Billion)
-* **Genesis Allocation (10%):** 10,000,000,000 **₳** (Allocated to the Sovereign Treasury for ICO and Development).
-* **Mining Pool (90%):** 90,000,000,000 **₳** (Earned exclusively through Proof-of-Work).
-* **The Halving Engine:** The mining reward starts at **50,000 ₳** per block and halves every **210,000 blocks** to enforce programmed scarcity.
+> ⚠️ **Beta Software.** ATK-Mint is experimental. Do not use for high-value financial transactions. The creators accept no liability. See the [Security Disclosure](#security-disclosure) section below.
 
 ---
 
-## ⚡ Architecture: The "Identity Firewall"
+## What Makes ATK-Mint Different
 
-ATK-Mint is built on a provocative claim: **Security by Separation.**
+Most blockchains validate transactions at runtime — the network checks whether the math adds up after the fact. ATK-Mint takes a fundamentally different approach: every block must pass **formal verification** before it can be submitted.
 
-* **The Vault (Server):** An immutable ledger that enforces the 100B cap and halving rewards. It holds no private keys.
-* **The Miner (Client):** A stateless hashing engine that signs transactions locally.
-* **The Gravity Shield:** Features a Dynamic Difficulty Engine (Difficulty: 6) to maintain a steady block cadence regardless of global hashing power.
+The Autarky compiler — a Linear Logic type-checker — mathematically proves that every resource in a transaction is consumed exactly once. Not approximately. Not probably. Provably. If the proof fails, no block is produced. If the proof passes, the compiler cryptographically signs the result, and that signature is embedded in the block and independently verified by the network.
 
-The Autarky Protocol implements a rigorous validation pipeline within the Vault logic to prevent the 'Double Spend' problem, while the Autarky binary secures these transactions through immutable Proof-of-Work.
-1. Stateful Ledger Validation: The Vault maintains a live state of all account balances. Every incoming transaction is checked against the current ledger before it enters the mempool. If the sender's balance is less than the transaction amount + mining fee, the Vault drops the packet immediately.
-2. Transaction Nonce & Atomic Sequencing: Each transaction is cryptographically tied to a unique identifier. Once a transaction is included in a block, its unique signature is "spent" globally. Any subsequent attempt to broadcast the same signature is rejected as a "Replay Attack."
-3. The "Longest Chain" Rule: In the event of a network split (fork), the software automatically follows the chain with the most cumulative Proof-of-Work. This ensures that even if a malicious actor attempts to spend coins on a side-chain, the network will eventually re-sync to the "Canonical Chain," rendering the fraudulent transaction void.
-4. Confirmations: A transaction is considered "Pending" until it is mined into a block. The software recommends waiting for 3-6 confirmations (blocks) before finalizing high-value transfers, making it mathematically impossible for an attacker to rewrite the history required to double-spend.
+This is categorically different from Bitcoin Script, the Ethereum EVM, or any other major blockchain's validation model. In those systems, correctness is checked at runtime. In ATK-Mint, correctness is proven at compile time — before the block exists.
+
+A second architectural innovation is the **Identity Firewall**: the protocol separates financial keys from mining operations, so mining can be distributed across untrusted cloud servers without ever exposing treasury funds.
 
 ---
 
-## ⚠️ Beta Software & Liability Disclaimer
+## Tokenomics
 
-**ATK-MINT IS EXPERIMENTAL BETA SOFTWARE.**
-By cloning, compiling, running, or transacting on this network, you explicitly acknowledge that this is an experimental peer-to-peer system. The creators and contributors hold **zero liability**. **Do not use this software for high-value financial transactions.**
+| Parameter | Value |
+|---|---|
+| Maximum Supply | 100,000,000,000 ₳ (100 billion — hard cap) |
+| Genesis / Treasury (10%) | 10,000,000,000 ₳ — ICO, development, ecosystem grants |
+| Mining Pool (90%) | 90,000,000,000 ₳ — Proof-of-Work only |
+| Initial Block Reward | 50,000 ₳ |
+| Halving Interval | Every 210,000 blocks (~4-year cycles) |
+| Current Difficulty | 6 leading zeros (SHA-256) |
+
+The block reward halves every 210,000 blocks following the schedule:
+
+$$\text{Reward}(n) = \left\lfloor \frac{50{,}000}{2^n} \right\rfloor$$
+
+This mirrors Bitcoin's scarcity model, creating predictable supply issuance that rewards early participants while guaranteeing long-term deflationary pressure.
 
 ---
 
-## 🐳 Universal Docker Node (Mine Anywhere)
+## Architecture
 
-The most secure and stable way to run the ATK-Mint engine is via our containerized, OS-agnostic Docker image. This guarantees a pristine environment on any machine without polluting your host system.
+The Autarky Protocol runs as two isolated layers that communicate only through local standard I/O. They share no memory, no filesystem access, and no network stack.
 
-### 1\. Clone & Install Dependencies
-First, pull down the repository and install the required Node packages (this prevents any missing module errors during setup).
+```
+┌─────────────────────────────────┐        ┌──────────────────────────────────┐
+│  CONTROL LAYER  ("The Brain")   │        │  SOVEREIGN ENGINE  ("The Muscle") │
+│  mark.js  ·  Node.js            │        │  bin/atk  ·  Compiled Rust/C     │
+│                                 │        │                                  │
+│  • Holds wallet.json            │◄──────►│  • SHA-256 Proof-of-Work         │
+│  • Signs blocks (ECDSA)         │  stdio │  • Autarky formal verification   │
+│  • Talks to the Vault (HTTPS)   │        │  • Signs compiler proof (Ed25519) │
+│  • Applies halving schedule     │        │  • NO network stack              │
+│  • Never performs hashing       │        │  • NO access to wallet.json      │
+└─────────────────────────────────┘        └──────────────────────────────────┘
+         │                                                   │
+         │ wallet.json stays here                            │ autarky.key lives here
+         │ (local machine only)                              │ (safe to deploy to cloud)
+         ▼                                                   ▼
+   Your treasury                                     Mining servers
+   — never exposed                                   — compromisable, harmless
+```
+
+### The Identity Firewall
+
+`wallet.json` (financial keypair) and `autarky.key` (compiler identity key) are separate files with separate roles. Mining nodes only need `autarky.key`. If a cloud server is breached, the attacker gains a disconnected hashing process — not your funds.
+
+### The Formal Verification Pipeline
+
+Every MINT block goes through this sequence before the Vault will accept it:
+
+1. The Control Layer syncs with the Vault to get the current chain height, nonce, and previous block hash.
+2. The Sovereign Engine solves Proof-of-Work (6 leading zeros).
+3. The Autarky compiler runs `main.aut` against the block's resource parameters (`SYS_COMPUTE`, `SYS_CREDITS`), formally proving resources are consumed correctly under Linear Logic.
+4. The compiler signs the proof with `autarky.key`, producing `compiler_signature` and `compiler_pubkey`.
+5. The Control Layer signs the completed block with `wallet.json`.
+6. The Vault verifies both signatures — the operator signature and the compiler proof signature — before adding the block to the chain.
+
+A block without a valid compiler proof signature is cryptographically invalid. This step cannot be skipped or bypassed.
+
+---
+
+## Getting Started
+
+### Option A: Docker (Recommended)
+
+Docker compiles the Sovereign Engine from source on your machine, eliminating binary compatibility issues and keeping your environment clean.
+
+#### 1. Clone and install dependencies
+
 ```bash
-git clone [https://github.com/kevindaviesnz/atk-mint.git](https://github.com/kevindaviesnz/atk-mint.git)
+git clone https://github.com/kevindaviesnz/atk-mint.git
 cd atk-mint
 npm install
-````
+```
 
-### 2\. Initialize Your Sovereign Wallet
+#### 2. Generate your wallet
 
-Before you can use Docker, you must generate your local identity (`wallet.json`). **Do not skip this step**, or Docker will fail to mount your keys. Keep this file secure and NEVER upload it to a public GitHub repo.
+This creates `wallet.json` — your financial identity. Keep it secure and never commit it to version control.
 
 ```bash
 node mark.js init
 ```
 
-### 3\. Build the Forge
-
-Package the ATK-Mint engine into an isolated, high-performance Linux container.
+#### 3. Build the container
 
 ```bash
 docker build -t atk-miner .
 ```
 
-### 4\. Docker Command Reference
+#### 4. Commands
 
-Because the Docker container acts as your CLI, you interact with it by appending commands to the end of the `docker run` string.
+All Docker commands mount your local `wallet.json` into the container. Your financial keys never enter the image.
 
-**Standard Commands:**
+**Single operations:**
 
-| Action | Docker Command |
-| :--- | :--- |
-| **Check Balance** | `docker run -it --rm -v "$(pwd)/wallet.json:/app/wallet.json" atk-miner balance` |
-| **View Address** | `docker run -it --rm -v "$(pwd)/wallet.json:/app/wallet.json" atk-miner address` |
-| **Transfer ₳** | `docker run -it --rm -v "$(pwd)/wallet.json:/app/wallet.json" atk-miner transfer <ADDRESS> <AMOUNT>` |
-| **Mine Single Block** | `docker run -it --rm -v "$(pwd)/wallet.json:/app/wallet.json" atk-miner mine "Optional Message"` |
+| Action | Command |
+|---|---|
+| Check balance | `docker run -it --rm -v "$(pwd)/wallet.json:/app/wallet.json" atk-miner balance` |
+| View address | `docker run -it --rm -v "$(pwd)/wallet.json:/app/wallet.json" atk-miner address` |
+| Transfer ₳ | `docker run -it --rm -v "$(pwd)/wallet.json:/app/wallet.json" atk-miner transfer <ADDRESS> <AMOUNT>` |
+| Mine one block | `docker run -it --rm -v "$(pwd)/wallet.json:/app/wallet.json" atk-miner mine "Optional message"` |
 
-**Continuous Mining Commands:**
-
-| Action | Docker Command |
-| :--- | :--- |
-| **Mine Continuously<br>(Foreground)** | `docker run -it --rm --entrypoint /bin/sh -v "$(pwd)/wallet.json:/app/wallet.json" atk-miner -c "while true; do node mark.js mine 'Cloud Node'; sleep 2; done"`<br>*(Keeps your terminal open so you can watch blocks being solved live. Press `Ctrl+C` to stop).* |
-| **Mine Continuously<br>(Background / 24/7)** | `docker run -d --name atk-cloud-miner --entrypoint /bin/sh -v "$(pwd)/wallet.json:/app/wallet.json" atk-miner -c "while true; do node mark.js mine 'Cloud Node'; sleep 2; done"`<br>*(Runs silently in the background. Safe to close your terminal or disconnect from your VPS).* |
-
-**Background Miner Management:**
-
-  * View Live Logs: `docker logs -f atk-cloud-miner`
-  * Stop Mining: `docker stop atk-cloud-miner`
-  * Remove Background Process: `docker rm atk-cloud-miner`
-
------
-
-## 💻 Alternative: Local CLI Installation
-
-If you prefer not to use Docker, you can run the engine directly on your host machine.
-
-### 1\. Setup & Initialize
+**Continuous mining:**
 
 ```bash
-git clone [https://github.com/kevindaviesnz/atk-mint.git](https://github.com/kevindaviesnz/atk-mint.git)
+# Foreground (watch live output, Ctrl+C to stop)
+docker run -it --rm \
+  --entrypoint /bin/sh \
+  -v "$(pwd)/wallet.json:/app/wallet.json" \
+  atk-miner -c "while true; do node mark.js mine 'Cloud Node'; sleep 2; done"
+
+# Background (safe to close terminal / disconnect from VPS)
+docker run -d \
+  --name atk-cloud-miner \
+  --entrypoint /bin/sh \
+  -v "$(pwd)/wallet.json:/app/wallet.json" \
+  atk-miner -c "while true; do node mark.js mine 'Cloud Node'; sleep 2; done"
+```
+
+**Background miner management:**
+
+```bash
+docker logs -f atk-cloud-miner   # View live logs
+docker stop atk-cloud-miner       # Stop mining
+docker rm atk-cloud-miner         # Remove background process
+```
+
+---
+
+### Option B: Local CLI
+
+```bash
+git clone https://github.com/kevindaviesnz/atk-mint.git
 cd atk-mint
 npm install
 node mark.js init
 ```
 
-### 2\. Command Reference (Local CLI)
+**Command reference:**
 
-| Command | Action |
-| :--- | :--- |
-| `node mark.js balance` | Query the Vault for your confirmed **₳** balance. |
-| `node mark.js balance <ADDR>` | Audit the balance of any address (e.g., the Treasury). |
-| `node mark.js address` | Display your Public Key (Your receiving address). |
-| `node mark.js transfer <ADDR> <AMT>` | Securely sign, mine PoW, and broadcast an ₳ transaction. |
-| `node mark.js mine` | Solve a single block to earn mining rewards. |
+| Command | Description |
+|---|---|
+| `node mark.js balance` | Query your confirmed ₳ balance from the Vault |
+| `node mark.js balance <ADDRESS>` | Audit the balance of any address |
+| `node mark.js address` | Display your public key (receiving address) |
+| `node mark.js transfer <ADDRESS> <AMOUNT>` | Sign, mine PoW, and broadcast a transfer |
+| `node mark.js mine` | Solve a single block to earn mining rewards |
 
------
+---
 
-## 🗺️ Project Roadmap
+## Layer-2: Mark Version Control
 
-  - [x] **Phase 1: Genesis** - Hard-capped supply and 10B Treasury initialization.
-  - [x] **Phase 2: Scarcity Implementation** - Automated 210k block halving engine.
-  - [ ] **Phase 3: Network Expansion** - Deployment of multi-region validator nodes.
-  - [x] **Phase 4: Web Explorer** - Live visual dashboard for the ATK-Mint ledger.
-  - [ ] **Phase 5: Public Liquidity** - Treasury distribution and ecosystem grants.
+Mark is a decentralised version control system (like Git) built on ATK-Mint. Each commit anchors a code snapshot hash to the blockchain, creating an immutable, tamper-evident audit trail for software history. Commits consume a small amount of ₳ as network gas, and — like all network operations — the gas consumption is formally verified by the Autarky compiler before the commit block is accepted.
 
------
+This gives Mark commit history a property unavailable to centralised platforms: past commits cannot be silently rewritten without rewriting the blockchain.
 
-## 📜 License
+---
 
-MIT License. See `LICENSE` for details.
+## Roadmap
 
+| Phase | Status | Description |
+|---|---|---|
+| Genesis — 100B treasury initialisation | ✅ Complete | |
+| Halving engine — 210k block schedule | ✅ Complete | |
+| Web Explorer — live ledger dashboard | ✅ Complete | |
+| Multi-region validator nodes | 🔄 In Progress | |
+| Hydra P2P — full BFT decentralisation | 📋 Planned | |
+| Public liquidity — treasury distribution | 📋 Planned | |
+
+---
+
+## Security Disclosure
+
+ATK-Mint is experimental beta software that has not undergone a formal third-party security audit.
+
+**Do not use this software to store or transfer funds of significant value.**
+
+The `autarky.key` file is the compiler's root signing key. Treat it as a private key: do not commit it to version control, do not log it, and do not transmit it over unencrypted channels. If it is exposed, the compiler's identity within the network is compromised.
+
+The Identity Firewall (separation of `wallet.json` and `autarky.key`) is a meaningful security improvement over monolithic node architectures, but it does not protect against all threat vectors. Use cloud infrastructure with appropriate access controls.
+
+---
+
+## Technical Documentation
+
+| Document | Description |
+|---|---|
+| [docs/WHITEPAPER.md](docs/WHITEPAPER.md) | Full protocol design, formal verification model, tokenomics, and roadmap |
+| [docs/RETROSPECTIVE.md](docs/RETROSPECTIVE.md) | Engineering retrospective: architectural decisions, the Linux binary failure, and the Docker migration |
+| [docs/FAQ.md](docs/FAQ.md) | Common questions on the protocol, Mark VCS, and the Autarky compiler |
+| [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Solutions to known errors |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Development setup, component guidelines, and PR process |
+
+---
+
+## License
+
+MIT — see `LICENSE` for details.
+
+Authorship disclosure: This project was produced through a human-directed AI process under the oversight of Kevin Davies. The protocol architecture, source code, and technical design were developed in collaboration with Gemini Pro (Google DeepMind). The written documentation — including this whitepaper, the README, and supporting materials — was drafted using Claude (Anthropic). All AI-generated outputs were produced under the author's direct direction and reviewed prior to publication.
+
+Copyright © 2026 Kevin Davies.
