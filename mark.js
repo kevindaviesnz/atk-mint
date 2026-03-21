@@ -82,6 +82,7 @@ function getMiningReward(height) {
 
 // --- ⛏️ THE MINING ENGINE ---
 async function mineCommit(message) {
+
     if (!fs.existsSync(WALLET_FILE)) return console.log("❌ wallet.json not found. Run 'init' first.");
     const wallet = JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8'));
 
@@ -232,7 +233,7 @@ switch (command) {
         break;
     case 'commit':
     case 'mine':
-        mineCommit(process.argv[0] || "Cloud Block");
+        mineCommit(process.argv[3] || "Cloud Block");
         break;
     case 'balance':
         checkBalance();
