@@ -1,8 +1,3 @@
-Here is the complete, finalized `README.md` file. It incorporates all the safety checks, installation steps, and the comprehensive Docker command references we just built.
-
-You can copy and paste this entire block directly into your repository.
-
-````markdown
 # 🛡️ Autarky Network (ATK-MINT)
 
 ## **"Sovereign Wealth through Decoupled Consensus"**
@@ -138,7 +133,3 @@ node mark.js init
 
 MIT License. See `LICENSE` for details.
 
-```
-
-Would you like me to walk you through the Git commands to commit and push these final updates so your repository is fully primed for your new client?
-```
