@@ -42,45 +42,49 @@ By cloning, compiling, running, or transacting on this network, you explicitly a
 
 The most secure and stable way to run the ATK-Mint engine is via our containerized, OS-agnostic Docker image. This guarantees a pristine environment on any machine without polluting your host system.
 
-### 1\. Build the Forge
-
-Pull down a clean environment, install dependencies, and package the ATK-Mint engine.
-
-```bash
-docker build -t atk-miner .
-```
-
-### 2\. Start the Sovereign Rig
-
-Spin up the container and mount your local `wallet.json`. The isolated engine will mine blocks and save the **₳** rewards directly to your host machine.
-
-```bash
-docker run -it --rm -v "$(pwd)/wallet.json:/app/wallet.json" atk-miner
-```
-
------
-
-## 💻 Alternative: Local CLI Installation
-
-### 1\. Clone & Dependencies
-
+### 1\. Clone & Install Dependencies
+First, pull down the repository and install the required Node packages (this prevents any missing module errors during setup).
 ```bash
 git clone https://github.com/kevindaviesnz/atk-mint.git
 cd atk-mint
 npm install
 ```
 
-### 2\. Initialize Your Wallet
-
-Create your local `wallet.json`. This is your "Bank Account." **Keep this file secure and NEVER upload it to a public GitHub repo.**
-
+### 2\. Initialize Your Sovereign Wallet
+Before you can mine, you must generate your local identity (`wallet.json`). **Do not skip this step**, or Docker will fail to mount your keys. Keep this file secure and NEVER upload it to a public GitHub repo.
 ```bash
 node mark.js init
+# Or if you have the alias configured: atk-mint init
 ```
+
+### 3\. Build the Forge
+Package the ATK-Mint engine into an isolated, high-performance Linux container.
+```bash
+docker build -t atk-miner .
+```
+
+### 4\. Start the Sovereign Rig
+Spin up the container and mount your local `wallet.json`. The isolated engine will mine blocks and save the **₳** rewards directly to your host machine's wallet.
+```bash
+docker run -it --rm -v "$(pwd)/wallet.json:/app/wallet.json" atk-miner
+```
+*(To run this continuously in the background on a cloud VPS, add the `-d` flag).*
 
 -----
 
-## 🕹️ Command Reference (Local CLI)
+## 💻 Alternative: Local CLI Installation
+
+If you prefer not to use Docker, you can run the engine directly on your host machine.
+
+### 1\. Setup & Initialize
+```bash
+git clone https://github.com/kevindaviesnz/atk-mint.git
+cd atk-mint
+npm install
+node mark.js init
+```
+
+### 2\. Command Reference (Local CLI)
 
 | Command | Action |
 | :--- | :--- |
@@ -97,7 +101,7 @@ node mark.js init
   - [x] **Phase 1: Genesis** - Hard-capped supply and 10B Treasury initialization.
   - [x] **Phase 2: Scarcity Implementation** - Automated 210k block halving engine.
   - [ ] **Phase 3: Network Expansion** - Deployment of multi-region validator nodes.
-  - [ ] **Phase 4: Web Explorer** - Live visual dashboard for the ATK-Mint ledger.
+  - [x] **Phase 4: Web Explorer** - Live visual dashboard for the ATK-Mint ledger.
   - [ ] **Phase 5: Public Liquidity** - Treasury distribution and ecosystem grants.
 
 -----
@@ -105,6 +109,3 @@ node mark.js init
 ## 📜 License
 
 MIT License. See `LICENSE` for details.
-
------
-
