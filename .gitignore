@@ -36,6 +36,8 @@ state.json.example
 
 # 🏗️ COMPILED TARGETS & EPHEMERAL DATA
 autarky_compiler/target/
+bin/autarky-source/target/    # <--- THE FIX FOR THE 200MB FILES
+**/*.rs.bk
 pending_block.json
 pending_*.json       # Protects temporary mining files
 
@@ -46,4 +48,3 @@ pending_*.json       # Protects temporary mining files
 
 # Personal notes
 notes.txt
-
