@@ -108,13 +108,3 @@ MIT License. See `LICENSE` for details.
 
 -----
 
-### 🏁 Final Steps for Git Push
-
-Once you've saved this as `README.md` and created your `Dockerfile` and `.dockerignore`, run these commands on your Mac:
-
-```bash
-git add README.md Dockerfile .dockerignore
-git commit -m "Docs: Complete Sovereign README with Docker support"
-git push origin main
-```
-
