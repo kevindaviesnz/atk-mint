@@ -29,6 +29,12 @@ ATK-Mint is built on a provocative claim: **Security by Separation.**
 * **The Miner (Client):** A stateless hashing engine that signs transactions locally.
 * **The Gravity Shield:** Features a Dynamic Difficulty Engine (Difficulty: 6) to maintain a steady block cadence regardless of global hashing power.
 
+The Autarky Protocol implements a rigorous validation pipeline within the Vault logic to prevent the 'Double Spend' problem, while the Autarky binary secures these transactions through immutable Proof-of-Work.
+1. Stateful Ledger Validation: The Vault maintains a live state of all account balances. Every incoming transaction is checked against the current ledger before it enters the mempool. If the sender's balance is less than the transaction amount + mining fee, the Vault drops the packet immediately.
+2. Transaction Nonce & Atomic Sequencing: Each transaction is cryptographically tied to a unique identifier. Once a transaction is included in a block, its unique signature is "spent" globally. Any subsequent attempt to broadcast the same signature is rejected as a "Replay Attack."
+3. The "Longest Chain" Rule: In the event of a network split (fork), the software automatically follows the chain with the most cumulative Proof-of-Work. This ensures that even if a malicious actor attempts to spend coins on a side-chain, the network will eventually re-sync to the "Canonical Chain," rendering the fraudulent transaction void.
+4. Confirmations: A transaction is considered "Pending" until it is mined into a block. The software recommends waiting for 3-6 confirmations (blocks) before finalizing high-value transfers, making it mathematically impossible for an attacker to rewrite the history required to double-spend.
+
 ---
 
 ## ⚠️ Beta Software & Liability Disclaimer
