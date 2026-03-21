@@ -42,6 +42,7 @@ pending_*.json       # Protects temporary mining files
 # Trash files
 *.old
 *.remove
+*.dev.*
 
 # Personal notes
 notes.txt
