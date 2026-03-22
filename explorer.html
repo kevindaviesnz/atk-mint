@@ -170,33 +170,41 @@
             let balances = {};
             let totalSupply = BigInt(0);
 
+            // Replay the ledger history with correct mining rewards for all blocks
             blocks.sort((a, b) => a.height - b.height).forEach(block => {
                 const signer = (block.signer_pubkey || "").trim();
                 const recipient = (block.recipient || "").trim();
                 if (!signer) return;
 
                 if (block.type === 'GENESIS') {
-                    const amt = BigInt("10000000000");
+                    const amt = BigInt("10000000000"); // 10B Genesis
                     balances[signer] = (balances[signer] || BigInt(0)) + amt;
                     totalSupply += amt;
                 } 
-                else if (block.type === 'MINT') {
+                // --- FIXED: Reward is paid for EVERY block (MINT or TRANSFER) ---
+                else {
                     const reward = getMiningReward(block.height);
+                    
+                    // Add reward to the Miner (signer)
                     balances[signer] = (balances[signer] || BigInt(0)) + reward;
                     totalSupply += reward;
-                }
-                else if (block.type === 'TRANSFER') {
-                    const amt = toBigInt(block.amount);
-                    balances[signer] = (balances[signer] || BigInt(0)) - amt;
-                    if (recipient) balances[recipient] = (balances[recipient] || BigInt(0)) + amt;
+
+                    // If it was a Transfer, handle the amount movement
+                    if (block.type === 'TRANSFER') {
+                        const amt = toBigInt(block.amount);
+                        balances[signer] = (balances[signer] || BigInt(0)) - amt;
+                        if (recipient) balances[recipient] = (balances[recipient] || BigInt(0)) + amt;
+                    }
                 }
             });
 
+            // Update Global Supply UI
             document.getElementById('ui-supply').innerHTML = `<span class="currency-symbol text-2xl">₳</span>${formatNumber(totalSupply)} <span class="text-xs font-bold text-autarky">ATK</span>`;
 
+            // Render Rich List
             const richListHtml = Object.entries(balances)
                 .filter(([addr, bal]) => bal > BigInt(0))
-                .sort((a, b) => (b > a ? -1 : 1)) 
+                .sort((a, b) => (b < a ? -1 : 1)) 
                 .slice(0, 10)
                 .map(([addr, bal], index) => {
                     const isTreasury = addr === TREASURY_ADDR;
