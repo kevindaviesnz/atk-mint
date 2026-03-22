@@ -220,21 +220,26 @@ async function transferATK(recipient, amount, message = "") {
 // --- NEW HELPER FOR THE GALLERY ---
 async function getTransactionHistory(address) {
     try {
-        // 1. Fetch the confirmed blocks
         const blockRes = await fetch(`${VAULT_URL}/blocks`);
         const blocks = blockRes.ok ? await blockRes.json() : [];
 
-        // 2. Fetch the pending transactions (The "Waiting Room")
+        // 🎯 THE FIX: Unpack the embedded assets from mined blocks
+        let chainHistory = [];
+        blocks.forEach(b => {
+            chainHistory.push(b);
+            if (b.mempool_payload) {
+                // Give them the block height so the gallery knows they are anchored
+                const anchoredAssets = b.mempool_payload.map(tx => ({ ...tx, height: b.height }));
+                chainHistory.push(...anchoredAssets);
+            }
+        });
+
         const mempoolRes = await fetch(`${VAULT_URL}/mempool`);
         const mempool = mempoolRes.ok ? await mempoolRes.json() : [];
-
-        // 3. Mark the mempool items so the gallery knows they aren't "final" yet
         const pendingTxs = mempool.map(tx => ({ ...tx, isPending: true }));
 
-        // 4. Combine them into one list for the Gallery to scan
-        return [...blocks, ...pendingTxs];
+        return [...chainHistory, ...pendingTxs];
     } catch (e) {
-        console.error("❌ Failed to fetch history from Vault:", e.message);
         return [];
     }
 }
@@ -299,10 +304,10 @@ switch (command) {
         history.forEach(tx => {
             const msg = tx.message || (tx.data && tx.data.message) || "";
             
-            if (msg && msg.startsWith('ATK_ASSET|')) {
+            // 🎯 THE FIX: Check that the signer_pubkey matches myAddress
+            if (msg && msg.startsWith('ATK_ASSET|') && tx.signer_pubkey === myAddress) {
                 assetsFound = true;
                 const parts = msg.split('|');
-                console.log(parts)
                 const name = parts[1] || "Unknown Asset";
                 const hash = parts[2] ? parts[2].replace('HASH:', '') : 'Unknown';
                 
