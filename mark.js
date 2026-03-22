@@ -1,7 +1,12 @@
-const fs = require('fs');
-const crypto = require('crypto');
-const path = require('path');
-require('dotenv').config({ quiet: true }); 
+import fs from 'fs';
+import crypto from 'crypto';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import 'dotenv/config'; 
+
+// --- ES MODULE FIX: Recreate __dirname ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const VAULT_URL = "https://atk-mint-vault.duckdns.org";
 const WALLET_FILE = path.join(__dirname, 'wallet.json');
@@ -168,54 +173,69 @@ function showAddress() {
     console.log(`\n🔑 Your Public Key:\n${wallet.publicKey}\n`);
 }
 
-async function transferATK(recipient, amount) {
+async function transferATK(recipient, amount, message = "") {
     if (!fs.existsSync(WALLET_FILE)) return console.log("❌ wallet.json not found.");
     const wallet = JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8'));
     const state = await getNetworkState(wallet.publicKey);
 
-    // 1. Create the base block
-    let block = {
+    // 1. Create the transaction object
+    let tx = {
         signer_pubkey: wallet.publicKey,
         nonce: state.nonce,
-        mining_nonce: 0, // Reset for the new solve
         recipient: recipient.trim(),
         amount: amount.toString(),
+        message: message, // Anchor data goes here
         type: "TRANSFER",
-        previousHash: state.previousHash,
         timestamp: Date.now()
     };
 
-    // 2. 🔥 THE FIX: Mine the transaction to satisfy the Vault's Difficulty 6
-    console.log("⛏️  Mining Proof-of-Work for transaction...");
-    const minedBlock = mineBlock(block); 
-
-    // 3. Sign the fully mined block
-    const dataToSign = buildCanonicalString(minedBlock);
+    // 2. Sign it (No mining required!)
+    const dataToSign = JSON.stringify(tx); // Simplified for the mempool
     const privateKey = crypto.createPrivateKey({
         key: Buffer.from(wallet.privateKey, 'hex'),
         format: 'der',
         type: 'pkcs8'
     });
-    minedBlock.signature = crypto.sign(null, Buffer.from(dataToSign), privateKey).toString('hex');
+    tx.signature = crypto.sign(null, Buffer.from(dataToSign), privateKey).toString('hex');
 
-    // 4. Transmit the valid block
-    console.log(`🚀 Transmitting ₳ ${amount} to ${recipient.substring(0,10)}...`);
-    
+    // 3. Send to the NEW /transactions endpoint
     try {
-        const response = await fetch(`${VAULT_URL}/blocks`, {
+        const response = await fetch(`${VAULT_URL}/transactions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(minedBlock)
+            body: JSON.stringify(tx)
         });
 
-        const result = await response.json();
         if (response.ok) {
-            console.log(`✅ Sent! Block #${result.height} accepted by Vault.`);
+            console.log(`✅ Success! Asset broadcasted to Vault Mempool.`);
         } else {
-            console.log(`❌ Vault Rejected Transfer: ${JSON.stringify(result)}`);
+            const err = await response.json();
+            console.log(`❌ Vault Rejected: ${err.error}`);
         }
     } catch (e) {
         console.log(`❌ Network Error: ${e.message}`);
+    }
+}
+
+// --- NEW HELPER FOR THE GALLERY ---
+async function getTransactionHistory(address) {
+    try {
+        // 1. Fetch the confirmed blocks
+        const blockRes = await fetch(`${VAULT_URL}/blocks`);
+        const blocks = blockRes.ok ? await blockRes.json() : [];
+
+        // 2. Fetch the pending transactions (The "Waiting Room")
+        const mempoolRes = await fetch(`${VAULT_URL}/mempool`);
+        const mempool = mempoolRes.ok ? await mempoolRes.json() : [];
+
+        // 3. Mark the mempool items so the gallery knows they aren't "final" yet
+        const pendingTxs = mempool.map(tx => ({ ...tx, isPending: true }));
+
+        // 4. Combine them into one list for the Gallery to scan
+        return [...blocks, ...pendingTxs];
+    } catch (e) {
+        console.error("❌ Failed to fetch history from Vault:", e.message);
+        return [];
     }
 }
 
@@ -224,6 +244,123 @@ const command = (process.argv[2] || "").trim();
 const message = process.argv[3] || "ATK-Mint Cloud Block";
 
 switch (command) {
+
+    case 'verify': {
+        const filePath = process.argv[3];
+
+        if (!filePath || !fs.existsSync(filePath)) {
+            console.log("❌ Error: File to verify not found. Check your path.");
+            process.exit(1);
+        }
+
+        // 1. Generate the hash of the local file
+        const absolutePath = path.resolve(filePath.trim());
+        const fileBuffer = fs.readFileSync(absolutePath);
+        const localHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+
+        console.log(`🔍 Scanning local file: ${path.basename(absolutePath)}`);
+        console.log(`🧬 Local Fingerprint: ${localHash}\n`);
+        console.log("📡 Auditing Sovereign Ledger...\n");
+
+        if (!fs.existsSync(WALLET_FILE)) {
+            console.log("❌ wallet.json not found.");
+            process.exit(1);
+        }
+        const myAddress = JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8')).publicKey;
+        
+        // 2. Scan the blockchain for that exact hash
+        const history = await getTransactionHistory(myAddress);
+        let verified = false;
+
+        history.forEach(tx => {
+            const msg = tx.message || (tx.data && tx.data.message) || "";
+            if (msg.includes(localHash)) {
+                verified = true;
+                console.log(`✅ VERIFIED: This file is mathematically authentic!`);
+                console.log(`🧱 Found securely anchored in Block: #${tx.height || tx.index || 'Unknown'}`);
+            }
+        });
+
+        if (!verified) {
+            console.log("❌ UNVERIFIED: This exact file fingerprint does not exist on your blockchain.");
+            console.log("   (If even a single comma was changed in the file, the fingerprint will fail).");
+        }
+        break;
+    }
+        
+    case 'gallery': {
+        console.log("📂 --- Your Sovereign Digital Asset Gallery ---");
+        
+        const myAddress = JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8')).publicKey;
+        const history = await getTransactionHistory(myAddress);
+        
+        let assetsFound = false;
+
+        history.forEach(tx => {
+            const msg = tx.message || (tx.data && tx.data.message) || "";
+            
+            if (msg && msg.startsWith('ATK_ASSET|')) {
+                assetsFound = true;
+                const parts = msg.split('|');
+                console.log(parts)
+                const name = parts[1] || "Unknown Asset";
+                const hash = parts[2] ? parts[2].replace('HASH:', '') : 'Unknown';
+                
+                // Check if this came from the mempool or the chain
+                const statusLabel = tx.isPending ? "⏳ PENDING (Awaiting Block)" : `🧱 ANCHORED (Block #${tx.height})`;
+                
+                console.log(`✅ Asset: ${name}`);
+                console.log(`   🧬 Fingerprint: ${hash}`);
+                console.log(`   🛡️ Status: ${statusLabel}`);
+                console.log('--------------------------------------------');
+            }
+        });
+
+        if (!assetsFound) {
+            console.log("📭 Your gallery is currently empty.");
+        }
+        break;
+    }
+        
+    case 'anchor': {
+
+        const assetPath = process.argv[3];
+        const assetName = process.argv[3] || 'Untitled Asset';
+        
+        if (!assetPath || !fs.existsSync(assetPath)) {
+            console.log("❌ Error: File not found. Check your file path.");
+            process.exit(1);
+        }
+
+        if (!fs.existsSync(WALLET_FILE)) {
+            console.log("❌ wallet.json not found.");
+            process.exit(1);
+        }
+        
+        const myAddress = JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8')).publicKey;
+
+        // 1. Generate the unique Digital Fingerprint (SHA-256)
+        const fileBuffer = fs.readFileSync(assetPath);
+        const hashSum = crypto.createHash('sha256');
+        hashSum.update(fileBuffer);
+        const hexHash = hashSum.digest('hex');
+
+        // 2. Format the metadata string
+        const metadata = `ATK_ASSET|${assetName}|HASH:${hexHash}`;
+
+        // 3. Trigger a self-transfer with the metadata
+        console.log(`🔗 Anchoring Asset: ${assetName}...`);
+        console.log(`🧬 Fingerprint: ${hexHash}`);
+        
+        // Use transfer instead of mining for instant submission to the Mempool
+        transferATK(myAddress, 0.0001, metadata); 
+        
+        console.log("✅ Asset broadcasted to Vault Mempool!");
+        console.log("⏳ It will be permanently anchored when the next block is mined.");
+
+        break;
+    }
+
     case 'init':
         initWallet();
         break;
