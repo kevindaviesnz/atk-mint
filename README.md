@@ -241,31 +241,31 @@ docker rm atk-cloud-miner         # Remove background process
 
 ---
 
-### Option B: Local CLI
+## 📡 Multi-Node P2P Setup
 
+ATK-Mint uses a **Gossip Protocol** to synchronize the mempool across nodes. For two nodes to successfully share transactions, they must be registered as peers in a mutual handshake.
+
+### 1. Link Node A to Node B
+Run this command to tell your first node (Port 3000) that the second node exists:
 ```bash
-git clone https://github.com/kevindaviesnz/atk-mint.git
-cd atk-mint
-npm install
-node mark.js init
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"nodeUrl":"http://<NODE_B_IP>:3002"}' \
+  http://<NODE_A_IP>:3000/register-node
 ```
 
-**Complete command reference:**
+### 2. Link Node B to Node A (Mutual Sync)
+To ensure synchronization is bi-directional (Symmetric Gossip), you must also tell the second node about the first:
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"nodeUrl":"http://<NODE_A_IP>:3000"}' \
+  http://<NODE_B_IP>:3002/register-node
+```
 
-| Command | Description |
-|---|---|
-| `node mark.js init` | Generate a new `wallet.json`. Run once before anything else. |
-| `node mark.js address` | Display your public key (your receiving address). |
-| `node mark.js balance` | Query your confirmed ₳ balance from the Vault. |
-| `node mark.js balance <ADDRESS>` | Query any address — including the Treasury. |
-| `node mark.js transfer <ADDRESS> <AMOUNT>` | Sign and broadcast an ₳ transfer. |
-| `node mark.js send <ADDRESS> <AMOUNT>` | Alias for `transfer`. |
-| `node mark.js mine` | Solve a single Proof-of-Work block and earn mining rewards. |
-| `node mark.js mine "<message>"` | Mine a block with a custom message embedded on-chain. |
-| `node mark.js commit` | Alias for `mine`. |
-| `node mark.js anchor <filepath>` | Compute a file's SHA-256 fingerprint and anchor it to the blockchain. Costs 0.0001 ₳. Confirms when the next block is mined. |
-| `node mark.js gallery` | Display all digital assets you have anchored, including pending and confirmed status. |
-| `node mark.js verify <filepath>` | Verify a local file's authenticity against the blockchain. Reports the block number if found, or flags it as unverified. |
+### 🚦 Verification
+Once linked, you can verify the connection by visiting:
+`http://<NODE_IP>:3000/`
+
+If successful, the dashboard will display **`Peers: 1`**. Any transaction sent to one node will now automatically "gossip" and appear in the mempool of the other node within milliseconds.
 
 ---
 
@@ -356,7 +356,7 @@ node mark.js mine "git:$(git rev-parse HEAD)"
 | Halving engine — 210k block schedule | ✅ Complete | |
 | Web Explorer — live ledger dashboard | ✅ Complete | |
 | Digital Asset Gallery — anchor / gallery / verify | ✅ Complete | |
-| Multi-region validator nodes | 🔄 In Progress | |
+| Multi-region validator nodes | ✅ Complete | |
 | Hydra P2P — full BFT decentralisation | 📋 Planned | |
 | Public liquidity — treasury distribution | 📋 Planned | |
 
