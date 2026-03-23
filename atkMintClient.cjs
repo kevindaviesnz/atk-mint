@@ -11,15 +11,15 @@ let keys;
 if (fs.existsSync(WALLET_FILE)) {
     const data = JSON.parse(fs.readFileSync(WALLET_FILE));
     keys = {
-        publicKey: crypto.createPublicKey({ key: Buffer.from(data.pub, 'hex'), format: 'der', type: 'spki' }),
-        privateKey: crypto.createPrivateKey({ key: Buffer.from(data.priv, 'hex'), format: 'der', type: 'pkcs8' })
+        publicKey: crypto.createPublicKey({ key: Buffer.from(data.publicKey, 'hex'), format: 'der', type: 'spki' }),
+        privateKey: crypto.createPrivateKey({ key: Buffer.from(data.privateKey, 'hex'), format: 'der', type: 'pkcs8' })
     };
     console.log("📂 Loaded existing wallet.json");
 } else {
     keys = crypto.generateKeyPairSync('ed25519');
     fs.writeFileSync(WALLET_FILE, JSON.stringify({
-        pub: keys.publicKey.export({ format: 'der', type: 'spki' }).toString('hex'),
-        priv: keys.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('hex')
+        publicKey: keys.publicKey.export({ format: 'der', type: 'spki' }).toString('hex'),
+        privateKey: keys.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('hex')
     }, null, 2));
     console.log("✨ Created new wallet.json");
 }

@@ -14,8 +14,8 @@ if (!fs.existsSync(WALLET_FILE)) {
 // 📂 Load Sender Wallet
 const data = JSON.parse(fs.readFileSync(WALLET_FILE));
 const senderKeys = {
-    publicKey: crypto.createPublicKey({ key: Buffer.from(data.pub, 'hex'), format: 'der', type: 'spki' }),
-    privateKey: crypto.createPrivateKey({ key: Buffer.from(data.priv, 'hex'), format: 'der', type: 'pkcs8' })
+    publicKey: crypto.createPublicKey({ key: Buffer.from(data.publicKey, 'hex'), format: 'der', type: 'spki' }),
+    privateKey: crypto.createPrivateKey({ key: Buffer.from(data.privateKey, 'hex'), format: 'der', type: 'pkcs8' })
 };
 const senderPubkey = senderKeys.publicKey.export({ format: 'der', type: 'spki' }).subarray(12).toString('hex');
 
