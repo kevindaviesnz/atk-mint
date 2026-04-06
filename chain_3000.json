@@ -1,0 +1,12 @@
+[
+  {
+    "height": 0,
+    "type": "GENESIS",
+    "signer_pubkey": "3056301006072a8648ce3d020106052b8104000a0342000431cf5a9df07b34fbabf6900251c7745c70ead9dfc9e81d7585f2f03553a110d72d6094f07e259734be5a3d069167765215147bf368e7deef63876f713620d293",
+    "amount": "10000000000",
+    "timestamp": 1742515200000,
+    "hash": "000000genesis_sovereign_block_atk_mint",
+    "previousHash": "0",
+    "message": "ATK-Mint Official Genesis"
+  }
+]

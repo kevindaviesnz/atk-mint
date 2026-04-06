@@ -7,10 +7,8 @@ import 'dotenv/config';
 // --- ES MODULE FIX: Recreate __dirname ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const VAULT_URL = "https://atk-mint-vault.duckdns.org";
+const VAULT_URL = "http://23.95.216.127:3000";
 const WALLET_FILE = path.join(__dirname, 'wallet.json');
-
 
 // --- ADD THIS FUNCTION ---
 function initWallet() {
@@ -32,7 +30,7 @@ function initWallet() {
 }
 
 function buildCanonicalString(b) {
-    return [
+    return [ 
         String(b.signer_pubkey || ""), 
         String(b.nonce ?? "0"), 
         String(b.mining_nonce ?? "0"),
@@ -46,13 +44,16 @@ function buildCanonicalString(b) {
         String(b.compiler_signature || ""),
         String(b.compiler_pubkey || ""), 
         String(b.previousHash || "0")         
-    ].join('|');
+    ] .join('|');
 }
 
 async function getNetworkState(pubkey) {
     try {
         const response = await fetch(`${VAULT_URL}/nonce/${pubkey}`);
-        if (!response.ok) throw new Error("Vault unreachable");
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`HTTP ${response.status} - ${errText.substring(0, 100)}`);
+        }
         return await response.json();
     } catch (e) {
         console.error("❌ Network Sync Failed:", e.message);
@@ -134,13 +135,13 @@ async function mineCommit(message) {
             body: JSON.stringify(minedBlock)
         });
 
-        const result = await response.json();
-
         if (response.ok) {
+            const result = await response.json();
             console.log(`✅ SUCCESS! Block #${result.height} accepted.`);
             console.log(`🔗 Hash: ${minedBlock.hash.substring(0, 16)}...`);
         } else {
-            console.error(`❌ Vault Rejected Block: ${JSON.stringify(result)}`);
+            const errText = await response.text();
+            console.error(`❌ Vault Rejected Block (HTTP ${response.status}):\n${errText.substring(0, 150)}`);
         }
     } catch (e) {
         console.error(`❌ Network Error: ${e.message}`);
@@ -150,13 +151,14 @@ async function mineCommit(message) {
 async function checkBalance() {
     // Check if an address was provided in the command (process.argv)
     // If not, fall back to the local wallet.json
-    const targetAddress = process.argv[3] || (fs.existsSync(WALLET_FILE) ? JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8')).publicKey : null);
+    const targetAddress = process.argv [ 3 ] || (fs.existsSync(WALLET_FILE) ? JSON.parse(fs.readFileSync(WALLET_FILE, 'utf8')).publicKey : null);
     if (!targetAddress) {
         return console.log("❌ No address provided and no wallet.json found.");
     }
     
     try {
         const res = await fetch(`${VAULT_URL}/balance/${targetAddress.trim()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         
         // We use targetAddress here so the printout matches what you asked for
@@ -182,8 +184,8 @@ async function transferATK(recipient, amount, message = "") {
     let tx = {
         signer_pubkey: wallet.publicKey,
         nonce: state.nonce,
-        recipient: recipient.trim(),
-        amount: amount.toString(),
+        recipient: String(recipient || "").trim(),
+        amount: String(amount || "0"),
         message: message, // Anchor data goes here
         type: "TRANSFER",
         timestamp: Date.now()
@@ -209,8 +211,16 @@ async function transferATK(recipient, amount, message = "") {
         if (response.ok) {
             console.log(`✅ Success! Asset broadcasted to Vault Mempool.`);
         } else {
-            const err = await response.json();
-            console.log(`❌ Vault Rejected: ${err.error}`);
+            const errText = await response.text();
+            try {
+                // Try to parse JSON if the server sent a formatted error
+                const errJson = JSON.parse(errText);
+                console.log(`❌ Vault Rejected: ${errJson.error || 'Unknown error'}`);
+            } catch (e) {
+                // If parsing fails, output the raw server HTML/text
+                console.log(`❌ Vault Rejected (HTTP ${response.status}):`);
+                console.log(errText.substring(0, 200).replace(/\n/g, ' '));
+            }
         }
     } catch (e) {
         console.log(`❌ Network Error: ${e.message}`);
@@ -221,10 +231,10 @@ async function transferATK(recipient, amount, message = "") {
 async function getTransactionHistory(address) {
     try {
         const blockRes = await fetch(`${VAULT_URL}/blocks`);
-        const blocks = blockRes.ok ? await blockRes.json() : [];
+        const blocks = blockRes.ok ? await blockRes.json() : [ ];
 
         // 🎯 THE FIX: Unpack the embedded assets from mined blocks
-        let chainHistory = [];
+        let chainHistory = [ ];
         blocks.forEach(b => {
             chainHistory.push(b);
             if (b.mempool_payload) {
@@ -235,23 +245,23 @@ async function getTransactionHistory(address) {
         });
 
         const mempoolRes = await fetch(`${VAULT_URL}/mempool`);
-        const mempool = mempoolRes.ok ? await mempoolRes.json() : [];
+        const mempool = mempoolRes.ok ? await mempoolRes.json() : [ ];
         const pendingTxs = mempool.map(tx => ({ ...tx, isPending: true }));
 
-        return [...chainHistory, ...pendingTxs];
+        return [ ...chainHistory, ...pendingTxs ];
     } catch (e) {
-        return [];
+        return [ ];
     }
 }
 
 // --- CLI ROUTER ---
-const command = (process.argv[2] || "").trim();
-const message = process.argv[3] || "ATK-Mint Cloud Block";
+const command = (process.argv [ 2 ] || "").trim();
+const message = process.argv [ 3 ] || "ATK-Mint Cloud Block";
 
 switch (command) {
 
     case 'verify': {
-        const filePath = process.argv[3];
+        const filePath = process.argv [ 3 ];
 
         if (!filePath || !fs.existsSync(filePath)) {
             console.log("❌ Error: File to verify not found. Check your path.");
@@ -308,8 +318,8 @@ switch (command) {
             if (msg && msg.startsWith('ATK_ASSET|') && tx.signer_pubkey === myAddress) {
                 assetsFound = true;
                 const parts = msg.split('|');
-                const name = parts[1] || "Unknown Asset";
-                const hash = parts[2] ? parts[2].replace('HASH:', '') : 'Unknown';
+                const name = parts [ 1 ] || "Unknown Asset";
+                const hash = parts [ 2 ] ? parts [ 2 ].replace('HASH:', '') : 'Unknown';
                 
                 // Check if this came from the mempool or the chain
                 const statusLabel = tx.isPending ? "⏳ PENDING (Awaiting Block)" : `🧱 ANCHORED (Block #${tx.height})`;
@@ -329,8 +339,8 @@ switch (command) {
         
     case 'anchor': {
 
-        const assetPath = process.argv[3];
-        const assetName = process.argv[3] || 'Untitled Asset';
+        const assetPath = process.argv [ 3 ];
+        const assetName = process.argv [ 3 ] || 'Untitled Asset';
         
         if (!assetPath || !fs.existsSync(assetPath)) {
             console.log("❌ Error: File not found. Check your file path.");
@@ -371,11 +381,11 @@ switch (command) {
         break;
     case 'send':
     case 'transfer':
-        transferATK(process.argv[3], process.argv[4]);
+        transferATK(process.argv [ 3 ], process.argv [ 4 ]);
         break;
     case 'commit':
     case 'mine':
-        mineCommit(process.argv[3] || "Cloud Block");
+        mineCommit(process.argv [ 3 ] || "Cloud Block");
         break;
     case 'balance':
         checkBalance();
